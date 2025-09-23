@@ -1,3 +1,9 @@
+# How to setup
+
+1. Create venv
+2. Install requirements.txt
+3. Download model .pt file
+
 # Learning Emotion Representations from Verbal and Nonverbal Communication
 
 This is a Pytorch implementation of the [EmotionCLIP paper](https://openaccess.thecvf.com/content/CVPR2023/papers/Zhang_Learning_Emotion_Representations_From_Verbal_and_Nonverbal_Communication_CVPR_2023_paper.pdf):
