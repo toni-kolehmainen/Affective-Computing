@@ -18,6 +18,8 @@ import orjson
 from .utils import get_correct_bbox, bbox_to_mask
 from ..models.tokenizer import tokenize
 
+from config import settings
+
 EMOTION_CLASS_NAMES = [
     'neutral',
     'surprise',
@@ -48,8 +50,8 @@ logger = logging.getLogger()
 class MELD(Dataset):
     def __init__(
         self,
-        data_dir: str = '/ocean/projects/iri180005p/psuzhang/data/MELD',
-        split: Literal['train', 'dev', 'test'] = 'train',
+        data_dir: str = settings.MELD_DATASET_PATH,
+        split: Literal['train', 'dev', 'test'] = 'test',
         sampling_strategy: str = 'uniform',
         dense_sampling_interval: Optional[int] = 4,
         video_len: int = 8,
@@ -118,7 +120,6 @@ class MELD(Dataset):
             self.human_boxes = orjson.loads(f.read())
         
         logger.info(f'Index of {self.split} set created, {self.index.shape[0]} samples in total.')
-        
         
     def __len__(self):
         return self.index.shape[0]

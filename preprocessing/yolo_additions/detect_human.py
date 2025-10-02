@@ -73,13 +73,18 @@ def detect_one_video(model,source,vid,save_dir,stride,device,half,webcam=False):
     weights, view_img, save_txt, imgsz, trace = opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
     save_img = not opt.nosave and not source.endswith('.txt') and debug  # save inference images
     save_dir = save_dir / vid
-    human_boxes_path = os.path.join(source,vid,'human_boxes.json')
+    #human_boxes_path = os.path.join(source,vid,'human_boxes.json')
+    #video_name = vid.replace(".mp4", "")
+    #human_boxes_path = os.path.join(source, video_name, 'human_boxes.json')
+    human_boxes_path = os.path.join(source, 'human_boxes.json')
     if os.path.exists(human_boxes_path):
         return True
     # print(save_dir)
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
-    source = os.path.join(source,vid,'frames.hdf5')
+    #source = os.path.join(source,vid,'frames.hdf5')
+    #source = os.path.join(source, video_name, 'frames.hdf5')
+    source = os.path.join(source, 'frames.hdf5')
     if not os.path.exists(source):
         source = source.replace('.hdf5','')
     # Set Dataloader
@@ -188,7 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--num-workers', type=int, default=8, help='inference num workers')
     parser.add_argument('--conf-thres', type=float, default=0.25, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--debug', action='store_true', help='debug mode, i.e. example image with bboxes')
     parser.add_argument('--view-img', action='store_true', help='display results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')

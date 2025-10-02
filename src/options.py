@@ -26,7 +26,7 @@ class DefaultArgs(argparse.Namespace):
 
     # general setting
     PROJECT_PATH: str = '.'
-    device_mode: str = 'cuda'
+    device_mode: str = 'cpu'
     device: Optional[str] = None
     precision: str = 'amp'
     seed: Optional[int] = 2022

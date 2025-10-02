@@ -54,10 +54,12 @@ pillow==11.3.0
 platformdirs==4.4.0
 protobuf==6.32.1
 pydantic==2.11.9
+pydantic-settings==2.11.0
 pydantic_core==2.33.2
 Pygments==2.19.2
 pyparsing==3.2.5
 python-dateutil==2.9.0.post0
+python-dotenv==1.1.1
 pytube==15.0.0
 pytz==2025.2
 PyYAML==6.0.2

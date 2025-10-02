@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import logging
 from typing import Literal, Optional
 
-from matplotlib import transforms
 import numpy as np
 import torch
 from torch.nn import functional as F
@@ -22,26 +21,26 @@ from src.datasets.meld import MELD
 from src.datasets.bold import BoLD
 from src.datasets.movie_graphs import MovieGraphsDataset
 from src.datasets.emotic import Emotic
-from src.datasets.custom_image_dataset import CustomImageDataset
 from src.datasets.liris_accede import LirisAccede
 from src.engine.utils import set_random_seed
 from src.engine.logger import setup_logger
+
+from config import settings
 
 
 @dataclass
 class EvalArgs(argparse.Namespace):
     dataset: Literal['bold', 'mg', 'meld', 'emotic', 'la'] = 'bold'
-    ckpt_path: str = './exps/cvpr_final-20221113-235224-a4a18adc/checkpoints/latest.pt'
+    ckpt_path: str = settings.EMOTIONCLIP_MODEL_PATH
     use_cache: bool = False # when use_cache=True, ckpt_path and save_path are ignored
     save_cache: bool = True
     
     ckpt_strict: bool = True
     cuda_deterministic: bool = True
-    # cuda_deterministic: bool = False
     has_test_set: bool = False
     seed: int = 2022
     video_len: int = 8
-    device: str = 'cuda:0'
+    device: str = 'cpu'
     dataloader_workers: int = 4
     batch_size: int = 128
     cache_dir: str = './data/cache'
@@ -123,7 +122,7 @@ def eval_liris_accede(model:EmotionCLIP, args: EvalArgs):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='bold', choices=['bold', 'mg', 'meld', 'emotic', 'la'])
-    parser.add_argument('--ckpt-path', type=str, default='./exps/cvpr_final-20221113-235224-a4a18adc/checkpoints/latest.pt')
+    parser.add_argument('--ckpt-path', type=str, default='./emotionclip_latest.pt')
     cargs = parser.parse_args()
     args = EvalArgs(
         dataset=cargs.dataset,
@@ -139,7 +138,7 @@ def main():
         args.data_type = 'image'
     else:
         args.data_type = 'video'
-    # <--- Toni --->
+    
     if not args.use_cache:
         # load pretrained model
         model = EmotionCLIP(
@@ -149,83 +148,207 @@ def main():
         if args.ckpt_path:
             ckpt = torch.load(args.ckpt_path, map_location='cpu')
             model.load_state_dict(ckpt['model'], strict=args.ckpt_strict)
-            model.eval().to(args.device if torch.cuda.is_available() else "cpu")
+            model.eval().to(args.device)
             logger.info(f'Model loaded from {args.ckpt_path}')
         else:
             raise ValueError('No checkpoint provided')
         
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-        # 1. Create dataset
-        image_paths = ["./src/images/brunette-woman-smiling.jpg", "./src/images/angry.png", "./src/images/sad.png", "./src/images/angry1.jpg", "./src/images/male_smilling.jpg"]
-        test_dataloader = CustomImageDataset(image_paths)
-        dataloader = DataLoader(test_dataloader, batch_size=4, shuffle=False)
+        # create datasets and dataloaders
+        if args.dataset == 'bold':
+            train_dataset = BoLD(
+                video_len=args.video_len,
+                split='train'
+            )
+            val_dataset = BoLD(
+                video_len=args.video_len,
+                split='val'
+            )
+            test_dataset = None
+        elif args.dataset == 'mg':
+            train_dataset = MovieGraphsDataset(
+                video_len=args.video_len,
+                split='train'
+            )
+            val_dataset = MovieGraphsDataset(
+                video_len=args.video_len,
+                split='val'
+            )
+            test_dataset = MovieGraphsDataset(
+                video_len=args.video_len,
+                split='test'
+            )
+        elif args.dataset == 'meld':
+            #train_dataset = MELD(
+            #    video_len=args.video_len,
+            #    split='train',
+            #    target='emotion_idx'
+            #)
+            #val_dataset = MELD(
+            #    video_len=args.video_len,
+            #    split='dev',
+            #    target='emotion_idx'
+            #)
+            test_dataset = MELD(
+                video_len=args.video_len,
+                split='test',
+                target='emotion_idx'
+            )
+        elif args.dataset == 'emotic':
+            train_dataset = Emotic(
+                split='train',
+            )
+            val_dataset = Emotic(
+                split='val',
+            )
+            test_dataset = Emotic(
+                split='test',
+            )
+        elif args.dataset == 'la':
+            eval_liris_accede(model, args)
+            return
+        else:
+            raise ValueError(f'Unknown dataset {args.dataset}')
+        args.has_test_set = test_dataset is not None
+        #train_dataloader = DefaultDataLoader(train_dataset, args)
+        #val_dataloader = DefaultDataLoader(val_dataset, args)
+        test_dataloader = DefaultDataLoader(test_dataset, args) if args.has_test_set else None
         
-        # 2. Iterate and extract features
-        for imgs, _ in dataloader:
-            imgs = imgs.to(device)
-            mask = torch.ones(imgs.shape[0], imgs.shape[2], imgs.shape[3], device=device)
-
-            with torch.no_grad():
-                features = model.encode_image(imgs, image_mask=mask)
-                features = torch.nn.functional.normalize(features, dim=-1)
-            print(features.shape)
-
-        # 3. Classify with prompts
-        # prompts = [
-        #     "a female is happy",
-        #     "a female is sad",
-        #     "a female is angry",
-        #     "a female is surprised",
-        #     "a male is happy",
-        #     "a male is sad",
-        #     "a male is angry",
-        #     "a male is surprised"
-        # ]
-
-        prompts = [
-            "a person is happy",
-            "a person is sad",
-            "a person is angry",
-            "a person is surprised",
-        ]
-
-        # 3. tokenize prompts
-        import clip
-        tokenized = clip.tokenize(prompts).to(device)
-        text_features = []
-        with torch.no_grad():
-            text_features = model.encode_text(tokenized)
-            text_features = torch.nn.functional.normalize(text_features, dim=-1)
-
-        # 4. Iterate over dataloader
+        # extract features
+        #X_train, y_train = extract_features(model, train_dataloader, args, 'train', args.data_type)
+        #X_val, y_val = extract_features(model, val_dataloader, args, 'val', args.data_type)
+        if args.has_test_set:
+            X_test, y_test = extract_features(model, test_dataloader, args, 'test', args.data_type)
+        logger.info('Features extracted')
+            
+        # cache features
+        if args.save_cache:
+            os.makedirs(args.cache_dir, exist_ok=True)
+            #with open(osp.join(args.cache_dir, f'{args.dataset}_train_features.npy'), 'wb') as f:
+            #    np.save(f, X_train)
+            #    np.save(f, y_train)
+            #with open(osp.join(args.cache_dir, f'{args.dataset}_val_features.npy'), 'wb') as f:
+            #    np.save(f, X_val)
+            #    np.save(f, y_val)
+            if args.has_test_set:
+                with open(osp.join(args.cache_dir, f'{args.dataset}_test_features.npy'), 'wb') as f:
+                    np.save(f, X_test)
+                    np.save(f, y_test)
+            logger.info('Features cached')
+    else:
+        # load cached features
+        #with open(osp.join(args.cache_dir, f'{args.dataset}_train_features.npy'), 'rb') as f:
+        #    X_train = np.load(f)
+        #    y_train = np.load(f)
+        #with open(osp.join(args.cache_dir, f'{args.dataset}_val_features.npy'), 'rb') as f:
+        #    X_val = np.load(f)
+        #    y_val = np.load(f)
+        test_cache_path = osp.join(args.cache_dir, f'{args.dataset}_test_features.npy')
+        if osp.exists(test_cache_path):
+            args.has_test_set = True
+            with open(test_cache_path, 'rb') as f:
+                X_test = np.load(f)
+                y_test = np.load(f)
+        logger.info('Cached features loaded')
         
-        for imgs, paths in dataloader:
-            imgs = imgs.to(device)
-            # dummy masks (all ones)
-            mask = torch.ones(imgs.shape[0], imgs.shape[2], imgs.shape[3], device=device)
-            with torch.no_grad():
-                img_features = model.encode_image(imgs, image_mask=mask)
-                img_features = torch.nn.functional.normalize(img_features, dim=-1)
+    # setup linear classifier
+    if args.dataset == 'bold':
+        linear_clf = LogisticRegression(
+            random_state=args.seed,
+            max_iter=2000,
+            C=3.16,
+            solver='sag',
+            class_weight=None
+        )
+        linear_clf = OneVsRestClassifier(linear_clf)
+    elif args.dataset == 'mg':
+        linear_clf = LogisticRegression(
+            random_state=args.seed,
+            max_iter=2000,
+            C=10,
+            solver='sag',
+            class_weight=None
+        )
+        linear_clf = OneVsRestClassifier(linear_clf)
+    elif args.dataset == 'meld':
+        linear_clf = LogisticRegression(
+            random_state=args.seed,
+            max_iter=2000,
+            C=8,
+            solver='sag',
+            class_weight=None
+        )
+    elif args.dataset == 'emotic':
+        linear_clf = LogisticRegression(
+            random_state=args.seed,
+            max_iter=2000,
+            C=2.5,
+            solver='sag',
+            class_weight=None
+        )
+        linear_clf = OneVsRestClassifier(linear_clf)
+    else:
+        raise ValueError(f'Unknown dataset {args.dataset}')
+    
+    # train linear classifier
+#    linear_clf.fit(X_train, y_train)
+#    p_val = linear_clf.predict_proba(X_val)
+    if args.has_test_set:
+        p_test = linear_clf.predict_proba(X_test)
+    
+    if args.dataset == 'bold':
+        # val
+        mAP = average_precision_score(y_val, p_val, average='macro') * 100
+        auc = roc_auc_score(y_val, p_val, average='macro') * 100
+        logger.info(f'[BoLD val] mAP: {mAP:.2f} AUC: {auc:.2f}')
+    elif args.dataset == 'mg':
+        # val
+        acc = accuracy_from_affect2mm(y_val, p_val)
+        logger.info(f'[MovieGraphs val] acc: {acc:.2f}')
+        # test
+        acc = accuracy_from_affect2mm(y_test, p_test)
+        logger.info(f'[MovieGraphs test] acc: {acc:.2f}')
+    elif args.dataset == 'meld':
+        #p_val = np.argmax(p_val, axis=1)
+        p_test = np.argmax(p_test, axis=1)
+        # dev
+        #weighted_f1 = f1_score(y_val, p_val, average='weighted') * 100
+        #acc = accuracy_score(y_val, p_val) * 100
+        #logger.info(f'[MELD dev] weighted F1: {weighted_f1:.2f} acc: {acc:.2f}')
+        # test
+        weighted_f1 = f1_score(y_test, p_test, average='weighted') * 100
+        acc = accuracy_score(y_test, p_test) * 100
+        logger.info(f'[MELD test] weighted F1: {weighted_f1:.2f} acc: {acc:.2f}')
+    elif args.dataset == 'emotic':
+        # val
+        mAP = average_precision_score(y_val, p_val, average='macro') * 100
+        auc = roc_auc_score(y_val, p_val, average='macro') * 100
+        logger.info(f'[Emotic val] mAP: {mAP:.2f} AUC: {auc:.2f}')
+        # test
+        mAP = average_precision_score(y_test, p_test, average='macro') * 100
+        auc = roc_auc_score(y_test, p_test, average='macro') * 100
+        logger.info(f'[Emotic test] mAP: {mAP:.2f} AUC: {auc:.2f}')
+    else:
+        raise ValueError(f'Unknown dataset {args.dataset}')
+    
+    # predict VAD
+    if args.dataset == 'bold':
+        y_train, y_val = [], []
+        for i in range(len(train_dataset)):
+            target = train_dataset.annotations.loc[i, ['valence', 'arousal', 'dominance']].values.astype(np.float32)
+            target = torch.from_numpy(target)
+            y_train.append(target)
+        for i in range(len(val_dataset)):
+            target = val_dataset.annotations.loc[i, ['valence', 'arousal', 'dominance']].values.astype(np.float32)
+            target = torch.from_numpy(target)
+            y_val.append(target)
+        y_train, y_val = np.stack(y_train), np.stack(y_val)
+        
+        reg = Ridge(alpha=1)
+        reg.fit(X_train, y_train)
+        p_val = reg.predict(X_val)
+        r2 = r2_score(y_val, p_val, multioutput='uniform_average') * 100
+        logger.info(f'[BoLD val] r2: {r2:.2f}')
 
-            # compute cosine similarity
-            for i, feat in enumerate(img_features):
-                sims = torch.matmul(text_features, feat.unsqueeze(-1)).squeeze(-1)
-                probs = F.softmax(sims, dim=0)
-                best_idx = torch.argmax(probs).item()
-                best_prob = probs[best_idx].item() * 100
 
-                print(f"Best Match")
-                print(f"{image_paths[i]}: {prompts[best_idx]} ({best_prob:.2f}%)")
-                print("\nAll Predictions:")
-                prob_pairs = [(j, prompts[j], probs[j].item() * 100) for j in range(len(prompts))]
-                prob_pairs.sort(key=lambda x: x[2], reverse=True)
-
-                for rank, (idx, prompt, prob) in enumerate(prob_pairs, 1):
-                    marker = "★" if idx == best_idx else " "
-                    print(f"{rank:<4} {prompt:<25} {prob:>8.2f}% {marker}")
-                print("=" * 50)
-
-    # </--- Toni --->
 if __name__ == '__main__':
     main()
