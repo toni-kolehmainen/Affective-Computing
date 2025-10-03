@@ -2,7 +2,7 @@ import os
 import shutil
 
 # Original source directory containing your files
-source_dir = r"C:\Users\Toni\Downloads\EmotionCLIP-main (1)\EmotionCLIP-main\preprocessing\meld_local"
+source_dir = r"CURRENT_PATH\preprocessing" # Change this to your actual path
 
 # New directory 'youtube' inside preprocessing
 preprocessing_dir = os.path.dirname(source_dir)  # gets the 'preprocessing' folder
