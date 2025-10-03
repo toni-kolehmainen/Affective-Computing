@@ -2,6 +2,10 @@ import argparse
 import time
 from pathlib import Path
 import os
+import sys
+
+yolov7_path = Path(__file__).resolve().parents[2] / "yolov7"
+sys.path.insert(0, str(yolov7_path))
 
 import cv2
 import torch
@@ -11,7 +15,8 @@ import json
 from tqdm import tqdm
 
 from models.experimental import attempt_load
-from utils.datasets import LoadStreams, LoadImages, ImagesDataset
+from utils.datasets import LoadStreams, LoadImages
+from datasets import ImagesDataset
 from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
@@ -53,131 +58,78 @@ def detect(save_img=False):
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
     (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
-    
+    all_human_boxes = dict()
 
     t0 = time.time()
-    for vid in tqdm(os.listdir(source)):
-        detect_one_video(model,source,vid,save_dir,stride,device,half,webcam=False)
-    # with open(human_boxes_path, 'w') as f:
-    #         json.dump(cleaned_text,f)
-    # if save_txt or save_img:
-    #     s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-    #     #print(f"Results saved to {save_dir}{s}")
+    for i, vid in enumerate(tqdm(os.listdir(source))):
+    # for vid in tqdm(os.listdir(source)):
+
+        # Tonttu test
+        # if i >= 3:
+        #     break
+
+        clip_boxes = detect_one_video(model, source, vid, save_dir, stride, device, half)
+        all_human_boxes.update(clip_boxes)
+        # detect_one_video(model,source,vid,save_dir,stride,device,half,webcam=False)
+
+    with open(os.path.join(source, 'test_bounding_boxes.json'), 'w') as f:
+        json.dump(all_human_boxes, f, indent=2)
 
     print(f'Done. ({time.time() - t0:.3f}s)')
 
-def detect_one_video(model,source,vid,save_dir,stride,device,half,webcam=False):
-    batch_size = opt.batch_size
-    num_workers = opt.num_workers
-    debug = opt.debug
-    weights, view_img, save_txt, imgsz, trace = opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
-    save_img = not opt.nosave and not source.endswith('.txt') and debug  # save inference images
+def detect_one_video(model, source, vid, save_dir, stride, device, half, webcam=False):
     save_dir = save_dir / vid
-    human_boxes_path = os.path.join(source,vid,'human_boxes.json')
+    frames_folder = os.path.join(source, vid, 'frames')
+    human_boxes_path = os.path.join(source, f'{vid}_human_boxes.json')
+
     if os.path.exists(human_boxes_path):
         return True
-    # print(save_dir)
-    if not os.path.exists(save_dir):
-        os.mkdir(save_dir)
-    source = os.path.join(source,vid,'frames.hdf5')
-    if not os.path.exists(source):
-        source = source.replace('.hdf5','')
-    # Set Dataloader
-    vid_path, vid_writer = None, None
-    if webcam:
-        view_img = check_imshow()
-        cudnn.benchmark = True  # set True to speed up constant image size inference
-        dataset = LoadStreams(source, img_size=imgsz, stride=stride)
-    else:
-        dataset = ImagesDataset(source, img_size=imgsz, stride=stride)
-        dataset = torch.utils.data.DataLoader(dataset,batch_size=batch_size,num_workers=num_workers)
+    if not os.path.exists(frames_folder):
+        raise FileNotFoundError(f"{frames_folder} does not exist")
 
-    # Get names and colors
-    names = model.module.names if hasattr(model, 'module') else model.names
-    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
+    # Dataloader
+    if webcam:
+        dataset = LoadStreams(frames_folder, img_size=opt.img_size, stride=stride)
+    else:
+        dataset = ImagesDataset(frames_folder, img_size=opt.img_size, stride=stride)
+        dataset = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, num_workers=opt.num_workers)
 
     # Run inference
     if device.type != 'cpu':
-        model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
-    
-    human_boxes = list()
+        model(torch.zeros(1, 3, opt.img_size, opt.img_size).to(device).type_as(next(model.parameters())))
+
+    clip_human_boxes = dict()  # per video
+
     for path, img, im0s in dataset:
-        img = img.to(device)
-        img = img.half() if half else img.float()  # uint8 to fp16/32
-        img /= 255.0  # 0 - 255 to 0.0 - 1.0
+        img = img.to(device).half() if device.type != 'cpu' else img.float()
+        img /= 255.0
         if img.ndimension() == 3:
             img = img.unsqueeze(0)
-        # Inference
-        t1 = time_synchronized()
-        pred = model(img, augment=opt.augment)
-        pred = pred[0]
 
-        # Apply NMS
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms, multi_label=True)
-        t2 = time_synchronized()
-        # for p in pred:
-        #     print(p[0])
-        # exit(0)
+        pred = model(img, augment=opt.augment)[0]
+        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes,
+                                   agnostic=opt.agnostic_nms, multi_label=True)
 
-        # # Apply Classifier
-        # if classify:
-        #     pred = apply_classifier(pred, modelc, img, im0s)
+        for i, det in enumerate(pred):
+            frame_name = Path(path[i]).name  # 00000001.jpg
+            boxes = det[det[:, -1] == 0, :4].cpu().detach().numpy().tolist()  # only class 0 (person)
+            clip_human_boxes[frame_name] = boxes
+            boxes_with_conf_class = []
+            for *xyxy, conf, cls in reversed(det): # unpack box + confidence + class
+                if int(cls) == 0: # only class 0 (person)
+                    xywh = xyxy2xywh(torch.tensor(xyxy).view(1, 4)).view(-1).tolist()
+                    boxes_with_conf_class.append(xywh + [float(conf), int(cls)])
+                    clip_human_boxes[frame_name] = boxes_with_conf_class
 
-        # Process detections
-        
-        
-        for i, det in enumerate(pred):  # detections per image
-            # print(det.shape)
-            if webcam:  # batch_size >= 1
-                p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(), dataset.count
-            else:
-                p, s, im0, frame = path[i], '', im0s[i].cpu().detach().numpy(), getattr(dataset, 'frame', 0)
+    # Save JSON using the video/clip name as key
+    return {vid: clip_human_boxes}
 
-            p = Path(p)  # to Path
-            save_path = str(save_dir / p.name)  # img.jpg
-            # txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
-            s += '%gx%g ' % img.shape[2:]  # print string
-            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-            human_boxes.append({p.name:det[:,:-1][det[:,-1]==0].cpu().detach().numpy().tolist()})
-            if len(det) and debug:
-                # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+    # human_boxes = {vid: clip_human_boxes}
+    # with open(human_boxes_path, 'w') as f:
+    #     json.dump(human_boxes, f, indent=2)
 
-                # Print results
-                for c in det[:, -1].unique():
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
+    # return True
 
-                # Write results
-                
-                
-                for *xyxy, conf, cls in reversed(det):
-                    if save_txt:  # Write to file
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                        line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
-                        # with open(txt_path + '.txt', 'a') as f:
-                        #     f.write(('%g ' * len(line)).rstrip() % line + '\n')
-                    # print(det)
-                    if save_img or view_img:  # Add bbox to image
-                        label = f'{names[int(cls)]} {conf:.2f}'
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
-
-            # Print time (inference + NMS)
-            #print(f'{s}Done. ({t2 - t1:.3f}s)')
-
-            # Stream results
-            if view_img:
-                cv2.imshow(str(p), im0)
-                cv2.waitKey(1)  # 1 millisecond
-
-            # Save results (image with detections)
-            if save_img:
-                cv2.imwrite(save_path, im0)
-                print(f" The image with the result is saved in: {save_path}")
-    
-    with open(human_boxes_path, 'w') as f:
-        json.dump(human_boxes,f)
-    return True
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

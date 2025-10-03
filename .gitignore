@@ -3,6 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 emotionclip_latest.pt
+linear_eval_video.py
+frames/
+youtube/
+meld_local/
+meld_dev/
+MELD.Raw/
+AffectGPT/
+OV-MER/
+checkpoint_000060_loss_0.480.npz
 
 # C extensions
 *.so

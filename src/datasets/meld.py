@@ -18,6 +18,8 @@ import orjson
 from .utils import get_correct_bbox, bbox_to_mask
 from ..models.tokenizer import tokenize
 
+from config import settings
+
 EMOTION_CLASS_NAMES = [
     'neutral',
     'surprise',
@@ -48,8 +50,8 @@ logger = logging.getLogger()
 class MELD(Dataset):
     def __init__(
         self,
-        data_dir: str = '/ocean/projects/iri180005p/psuzhang/data/MELD',
-        split: Literal['train', 'dev', 'test'] = 'train',
+        data_dir: str = settings.MELD_DATASET_PATH,
+        split: Literal['train', 'dev', 'test'] = 'test',
         sampling_strategy: str = 'uniform',
         dense_sampling_interval: Optional[int] = 4,
         video_len: int = 8,
@@ -110,7 +112,8 @@ class MELD(Dataset):
             assert self.index.loc[idx, 'Dialogue_ID'] == dia_id
             assert self.index.loc[idx, 'Utterance_ID'] == utt_id
             self.index.drop(idx, inplace=True)
-        self.index.reset_index(drop=True, inplace=True)
+        # self.index.reset_index(drop=True, inplace=True)
+        self.index = self.index.iloc[:3].reset_index(drop=True)
         
         # load the human boxes
         boxes_fpath = osp.join(self.data_dir, f'{self.split}_human_boxes.json')
@@ -119,7 +122,6 @@ class MELD(Dataset):
         
         logger.info(f'Index of {self.split} set created, {self.index.shape[0]} samples in total.')
         
-        
     def __len__(self):
         return self.index.shape[0]
     
@@ -127,8 +129,8 @@ class MELD(Dataset):
     def __getitem__(self, i):
         dialogue_id = self.index.loc[i, 'Dialogue_ID']
         utterance_id = self.index.loc[i, 'Utterance_ID']
-        clip_id = f'dia{dialogue_id}_utt{utterance_id}'
-        clip_dir = osp.join(self.data_dir, 'frames', f'{self.split}_splits', clip_id)
+        clip_id = f'dia{dialogue_id}_utt{utterance_id}.mp4'
+        clip_dir = osp.join(self.data_dir, 'frames', f'{self.split}_splits', clip_id, 'frames')
         
         num_frames = len(os.listdir(clip_dir))
         # HACK return another sample if the clip is too short when using non-uniform sampling
@@ -147,9 +149,10 @@ class MELD(Dataset):
         frames = []
         masks = []
         for frame_id in sampled_frame_ids:
-            frame_path = osp.join(clip_dir, f'frame_{frame_id}.jpg')
+            frame_name = f"{frame_id+1:08d}.jpg"
+            frame_path = osp.join(clip_dir, frame_name)
             raw_frame = Image.open(frame_path).convert('RGB')
-            raw_boxes = self.human_boxes[clip_id][f'frame_{frame_id}.jpg']
+            raw_boxes = self.human_boxes[clip_id][frame_name]
             resized_frame = F.resize(raw_frame, size=self.RESIZE_SIZE, interpolation=T.InterpolationMode.BICUBIC)
             resized_boxes = get_correct_bbox(raw_boxes, resized_frame.size)
             mask = bbox_to_mask(resized_boxes, resized_frame.size, binary_threshold=self.BBOX_TO_MASK_THRESHOLD)

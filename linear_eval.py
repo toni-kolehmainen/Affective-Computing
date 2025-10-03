@@ -3,6 +3,7 @@ import os
 import os.path as osp
 from dataclasses import dataclass
 import logging
+import sys
 from typing import Literal, Optional
 
 from matplotlib import transforms
@@ -16,6 +17,7 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import mean_squared_error, roc_auc_score, average_precision_score, f1_score, accuracy_score, balanced_accuracy_score, r2_score
 from scipy.signal import savgol_filter
 from rich import print as rprint
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from src.models.base import EmotionCLIP
 from src.datasets.meld import MELD
@@ -27,6 +29,109 @@ from src.datasets.liris_accede import LirisAccede
 from src.engine.utils import set_random_seed
 from src.engine.logger import setup_logger
 
+class AffectGPTWrapper:
+    """Wrapper for AffectGPT model"""
+    
+    def __init__(self, model_path: str, device: str = 'cpu'):
+        self.device = device
+        self.model = None
+        self.tokenizer = None
+        self._load_model(model_path)
+    
+    def _load_model(self, model_path: str):
+        """Load AffectGPT model"""
+
+        sys.path.append(os.path.abspath("./src/AffectGPT"))
+        from src.AffectGPT.my_affectgpt.models.affectgpt import AffectGPT
+        # from src.AffectGPT.my_affectgpt.models.tokenizer import load_tokenizer_from_LLM
+        try:
+            from omegaconf import OmegaConf
+            config_dict  = {
+                "visual_encoder": "CLIP_VIT_LARGE",
+                "acoustic_encoder": "HUBERT_LARGE",
+                "llama_model": "Qwen25",
+                "image_fusion_type": "token",
+                "num_image_query_token": 32,
+                "num_video_query_token": 32,
+                "num_audio_query_token": 8,
+                "num_multi_query_token": 16,
+                "frozen_video_Qformer": True,
+                "frozen_audio_Qformer": True,  
+                "frozen_multi_Qformer": True,
+                "frozen_video_proj": True,
+                "frozen_audio_proj": True,
+                "frozen_multi_llama_proj": True,
+                "frozen_llm": True,
+                "lora_r": 16,
+                "multi_fusion_type": "attention",
+                "video_fusion_type": "qformer", 
+                "audio_fusion_type": "qformer",
+                "device": self.device
+            }
+
+            config = OmegaConf.create(config_dict)
+            
+            self.model = AffectGPT.from_config(config)
+            import numpy as np
+
+            if os.path.exists(model_path):
+                checkpoint = np.load(model_path, allow_pickle=True)
+                checkpoint = dict(checkpoint)
+                self.model.load_state_dict(checkpoint, strict=False)
+            else:
+                print(f"⚠️  AffectGPT checkpoint not found: {model_path}")
+            self.model.to(self.device)
+            self.model.eval()
+            
+        except Exception as e:
+            print(f"❌ Failed to load AffectGPT: {e}")
+            print("   Install AffectGPT: git clone https://github.com/zeroQiaoba/AffectGPT.git")
+            self.model = None
+    
+    def extract_features(self, image_np: np.ndarray):
+        prompt = "Describe the emotions in this image with details on facial expressions and mood."
+        
+        if image_np.ndim == 3:
+            # HWC -> add batch and time dimensions: [1, C, 1, H, W]
+            frame_tensor = torch.from_numpy(image_np).permute(2, 0, 1).unsqueeze(0).unsqueeze(2).float() / 255.0
+        elif image_np.ndim == 4:
+            # HWC -> [B, C, 1, H, W]
+            frame_tensor = torch.from_numpy(image_np).permute(0, 3, 1, 2).unsqueeze(2).float() / 255.0
+        else:
+            raise ValueError(f"Unexpected image shape {image_np.shape}")
+
+        frame_tensor = frame_tensor.to(self.device)
+        
+        with torch.no_grad():
+            # Extract visual features only
+            outputs = self.model.visual_encoder(frame_tensor, raw_image=frame_tensor)
+            visual_feats = outputs[0] if isinstance(outputs, tuple) else outputs
+
+            feature_summary = visual_feats.mean().item()
+            prompt_with_features = (
+                f"Analyze the following image features and describe the emotions:\n"
+                f"Feature summary value = {feature_summary:.4f}\n"
+                f"Answer in natural language with facial expression and mood details."
+            )
+            # prompt_with_features = f"{prompt} Feature summary: {feature_summary:.4f}"
+            print(f"Feature summary: {prompt_with_features}")
+             # 2. Tokenize prompt for LLM
+            tokens = self.model.llama_tokenizer(prompt_with_features, return_tensors="pt").to(self.device)
+            print(f"tokens: {tokens}")
+            # 3. Generate description conditioned on visual features
+            output = self.model.llama_model.generate(
+                **tokens,
+                max_length=100,
+                do_sample=True,
+                temperature=0.7,
+                top_k=50,
+                top_p=0.9,
+            )
+
+            # 4. Decode generated tokens
+            description = self.model.llama_tokenizer.decode(output[0], skip_special_tokens=True)
+
+        return description.strip()
 
 @dataclass
 class EvalArgs(argparse.Namespace):
@@ -122,8 +227,8 @@ def eval_liris_accede(model:EmotionCLIP, args: EvalArgs):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='bold', choices=['bold', 'mg', 'meld', 'emotic', 'la'])
-    parser.add_argument('--ckpt-path', type=str, default='./exps/cvpr_final-20221113-235224-a4a18adc/checkpoints/latest.pt')
+    parser.add_argument('--dataset', type=str, default='emotic', choices=['bold', 'mg', 'meld', 'emotic', 'la'])
+    parser.add_argument('--ckpt-path', type=str, default='./emotionclip_latest.pt')
     cargs = parser.parse_args()
     args = EvalArgs(
         dataset=cargs.dataset,
@@ -141,6 +246,9 @@ def main():
         args.data_type = 'video'
     # <--- Toni --->
     if not args.use_cache:
+
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
         # load pretrained model
         model = EmotionCLIP(
             video_len=args.video_len,
@@ -154,13 +262,34 @@ def main():
         else:
             raise ValueError('No checkpoint provided')
         
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # ------------------------------
+        # Load AffectGPT
+        # ------------------------------
+
+        # affectgpt_path = './checkpoint_000060_loss_0.480.npz'
+        # affectgpt = AffectGPTWrapper(affectgpt_path, device)
+
+        # sys.path.append(os.path.abspath("./src/AffectGPT"))
+        # from src.AffectGPT.my_affectgpt.models.affectgpt import AffectGPT
+        # from src.AffectGPT.my_affectgpt.models.tokenizer import load_tokenizer_from_LLM
+        
+        # # Load tokenizer for prompts
+        # tokenizer = load_tokenizer_from_LLM(cfg["llama_model"])
 
         # 1. Create dataset
         image_paths = ["./src/images/brunette-woman-smiling.jpg", "./src/images/angry.png", "./src/images/sad.png", "./src/images/angry1.jpg", "./src/images/male_smilling.jpg"]
         test_dataloader = CustomImageDataset(image_paths)
         dataloader = DataLoader(test_dataloader, batch_size=4, shuffle=False)
-        
+
+        # from PIL import Image
+        # img = Image.open(image_paths[0]).convert("RGB") 
+        # img = img.resize((224, 224))
+        # img_np = np.array(img)
+
+        # call AffectGPT
+        # description = affectgpt.extract_features(img_np)
+        # print("Extracted description:", description)
+
         # 2. Iterate and extract features
         for imgs, _ in dataloader:
             imgs = imgs.to(device)
@@ -172,16 +301,6 @@ def main():
             print(features.shape)
 
         # 3. Classify with prompts
-        # prompts = [
-        #     "a female is happy",
-        #     "a female is sad",
-        #     "a female is angry",
-        #     "a female is surprised",
-        #     "a male is happy",
-        #     "a male is sad",
-        #     "a male is angry",
-        #     "a male is surprised"
-        # ]
 
         prompts = [
             "a person is happy",
@@ -215,6 +334,7 @@ def main():
                 best_idx = torch.argmax(probs).item()
                 best_prob = probs[best_idx].item() * 100
 
+                # 5. Print results
                 print(f"Best Match")
                 print(f"{image_paths[i]}: {prompts[best_idx]} ({best_prob:.2f}%)")
                 print("\nAll Predictions:")
