@@ -44,3 +44,20 @@ We use the following default setting but you may change them as needed.
    ```
    python linear_eval.py --dataset meld --ckpt-path emotionclip_latest.pt
    ```
+
+5. Structure
+
+   Train, test and dev needs frame folder. Only this command work, so videos need to be in youtube folder as following
+   - youtube
+        |- dia0_utt0.mp4
+           |- dia0_utt0.mp4
+           |- frame
+        |- dia1_utt0.mp4
+           |- dia0_utt0.mp4
+           |- frame
+   ```
+   python download_videos.py --source 'local' --fps 8
+   ```
+   Also, need to have train_human_boxes.json, test_human_boxes.json and dev_human_boxes.json.
+   detect_human.py edit to correct structure.
+   
