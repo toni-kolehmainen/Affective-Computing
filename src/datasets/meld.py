@@ -130,8 +130,8 @@ class MELD(Dataset):
     def __getitem__(self, i):
         dialogue_id = self.index.loc[i, 'Dialogue_ID']
         utterance_id = self.index.loc[i, 'Utterance_ID']
-        clip_id = f'dia{dialogue_id}_utt{utterance_id}'
-        clip_dir = osp.join(self.data_dir, self.split, 'frames', clip_id+"_frames")
+        clip_id = f'dia{dialogue_id}_utt{utterance_id}_frames'
+        clip_dir = osp.join(self.data_dir, self.split, 'frames', clip_id)
         
         frame_names = sorted([file.name for file in Path(clip_dir).iterdir()])
         print(frame_names)

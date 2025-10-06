@@ -43,7 +43,7 @@ def detect(save_img=False):
         if not video_dir.is_dir() or not video_dir.name.startswith("dia"):
             continue
 
-        clip_id = video_dir.name.replace("_frames", "")  # e.g. dia125_utt3
+        clip_id = video_dir.name
         video_boxes = detect_one_video(
             model=model,
             source_dir=video_dir,
