@@ -21,6 +21,9 @@ from utils.general import check_img_size, check_requirements, check_imshow, non_
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
+from torch.serialization import add_safe_globals
+from models.yolo import Model
+
 
 
 def detect(save_img=False):
@@ -37,7 +40,7 @@ def detect(save_img=False):
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
-    # Load model
+    add_safe_globals([torch.nn.modules.container.Sequential])
     model = attempt_load(weights, map_location=device)  # load FP32 model
     stride = int(model.stride.max())  # model stride
     imgsz = check_img_size(imgsz, s=stride)  # check img_size
@@ -78,8 +81,11 @@ def detect(save_img=False):
     print(f'Done. ({time.time() - t0:.3f}s)')
 
 def detect_one_video(model, source, vid, save_dir, stride, device, half, webcam=False):
+    print(torch.version.cuda)      # Should show your CUDA version
+    print(torch.cuda.is_available())  # Should be True
+    print(torch.cuda.current_device())
     save_dir = save_dir / vid
-    frames_folder = os.path.join(source, vid, 'frames')
+    frames_folder = os.path.join(source, vid)
     human_boxes_path = os.path.join(source, f'{vid}_human_boxes.json')
 
     if os.path.exists(human_boxes_path):
