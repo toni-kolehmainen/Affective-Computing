@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 emotionclip_latest.pt
-data/yolov7.pt
+data/*
 linear_eval_video.py
 frames/
 youtube/
