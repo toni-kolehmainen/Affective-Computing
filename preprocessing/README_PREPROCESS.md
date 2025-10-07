@@ -16,6 +16,11 @@ cp yolo_additions/detect_human.py yolov7/detect_human.py
 
 We use the following default setting but you may change them as needed.
 
+1. Update the paths in the config.py file. Most important for MELD are:
+
+MELD_DATASET_PATH: The path to the folder "MELD.Raw".
+EMOTIONCLIP_MODEL_PATH: The path to where EmotionClip is. Assumed to be "./emotionclip_latest.pt" in project root directory.
+
 2. Run `download_videos.py` to preprocess videos saved locally:
 
    ```

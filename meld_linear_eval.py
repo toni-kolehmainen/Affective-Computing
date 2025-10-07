@@ -232,20 +232,8 @@ def main():
     #p_val = linear_clf.predict_proba(X_val)
     if args.has_test_set:
         p_test = linear_clf.predict_proba(X_test)
-    
-    if args.dataset == 'bold':
-        # val
-        mAP = average_precision_score(y_val, p_val, average='macro') * 100
-        auc = roc_auc_score(y_val, p_val, average='macro') * 100
-        logger.info(f'[BoLD val] mAP: {mAP:.2f} AUC: {auc:.2f}')
-    elif args.dataset == 'mg':
-        # val
-        acc = accuracy_from_affect2mm(y_val, p_val)
-        logger.info(f'[MovieGraphs val] acc: {acc:.2f}')
-        # test
-        acc = accuracy_from_affect2mm(y_test, p_test)
-        logger.info(f'[MovieGraphs test] acc: {acc:.2f}')
-    elif args.dataset == 'meld':
+
+    if args.dataset == 'meld':
         #p_val = np.argmax(p_val, axis=1)
         p_test = np.argmax(p_test, axis=1)
         # dev
@@ -256,36 +244,9 @@ def main():
         weighted_f1 = f1_score(y_test, p_test, average='weighted') * 100
         acc = accuracy_score(y_test, p_test) * 100
         logger.info(f'[MELD test] weighted F1: {weighted_f1:.2f} acc: {acc:.2f}')
-    elif args.dataset == 'emotic':
-        # val
-        mAP = average_precision_score(y_val, p_val, average='macro') * 100
-        auc = roc_auc_score(y_val, p_val, average='macro') * 100
-        logger.info(f'[Emotic val] mAP: {mAP:.2f} AUC: {auc:.2f}')
-        # test
-        mAP = average_precision_score(y_test, p_test, average='macro') * 100
-        auc = roc_auc_score(y_test, p_test, average='macro') * 100
-        logger.info(f'[Emotic test] mAP: {mAP:.2f} AUC: {auc:.2f}')
     else:
         raise ValueError(f'Unknown dataset {args.dataset}')
-    
-    # predict VAD
-    if args.dataset == 'bold':
-        y_train, y_val = [], []
-        for i in range(len(train_dataset)):
-            target = train_dataset.annotations.loc[i, ['valence', 'arousal', 'dominance']].values.astype(np.float32)
-            target = torch.from_numpy(target)
-            y_train.append(target)
-        for i in range(len(val_dataset)):
-            target = val_dataset.annotations.loc[i, ['valence', 'arousal', 'dominance']].values.astype(np.float32)
-            target = torch.from_numpy(target)
-            y_val.append(target)
-        y_train, y_val = np.stack(y_train), np.stack(y_val)
-        
-        reg = Ridge(alpha=1)
-        reg.fit(X_train, y_train)
-        p_val = reg.predict(X_val)
-        r2 = r2_score(y_val, p_val, multioutput='uniform_average') * 100
-        logger.info(f'[BoLD val] r2: {r2:.2f}')
+
 
 
 if __name__ == '__main__':
