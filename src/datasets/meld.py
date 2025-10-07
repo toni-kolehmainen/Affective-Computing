@@ -114,6 +114,7 @@ class MELD(Dataset):
             assert self.index.loc[idx, 'Utterance_ID'] == utt_id
             self.index.drop(idx, inplace=True)
         self.index.reset_index(drop=True, inplace=True)
+        # self.index = self.index.iloc[:3].reset_index(drop=True)
         
         # load the human boxes
         boxes_fpath = osp.join(self.data_dir, f'{self.split}_human_boxes.json')

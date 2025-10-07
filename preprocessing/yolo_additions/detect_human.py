@@ -12,7 +12,8 @@ import json
 from tqdm import tqdm
 
 from models.experimental import attempt_load
-from utils.datasets import LoadStreams, LoadImages, ImagesDataset
+from utils.datasets import LoadStreams, LoadImages
+from datasets import ImagesDataset
 from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
