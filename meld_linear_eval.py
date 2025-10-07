@@ -40,7 +40,7 @@ class EvalArgs(argparse.Namespace):
     has_test_set: bool = False
     seed: int = 2022
     video_len: int = 8
-    device: str = 'cpu'
+    device: str = 'cuda:0'
     dataloader_workers: int = 4
     batch_size: int = 128
     cache_dir: str = './data/cache'
@@ -140,6 +140,8 @@ def main():
         args.data_type = 'video'
     
     if not args.use_cache:
+        #device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
         # load pretrained model
         model = EmotionCLIP(
             video_len=args.video_len,
@@ -148,7 +150,7 @@ def main():
         if args.ckpt_path:
             ckpt = torch.load(args.ckpt_path, map_location='cpu')
             model.load_state_dict(ckpt['model'], strict=args.ckpt_strict)
-            model.eval().to(args.device)
+            model.eval().to(args.device if torch.cuda.is_available() else "cpu")
             logger.info(f'Model loaded from {args.ckpt_path}')
         else:
             raise ValueError('No checkpoint provided')
@@ -232,20 +234,8 @@ def main():
     #p_val = linear_clf.predict_proba(X_val)
     if args.has_test_set:
         p_test = linear_clf.predict_proba(X_test)
-    
-    if args.dataset == 'bold':
-        # val
-        mAP = average_precision_score(y_val, p_val, average='macro') * 100
-        auc = roc_auc_score(y_val, p_val, average='macro') * 100
-        logger.info(f'[BoLD val] mAP: {mAP:.2f} AUC: {auc:.2f}')
-    elif args.dataset == 'mg':
-        # val
-        acc = accuracy_from_affect2mm(y_val, p_val)
-        logger.info(f'[MovieGraphs val] acc: {acc:.2f}')
-        # test
-        acc = accuracy_from_affect2mm(y_test, p_test)
-        logger.info(f'[MovieGraphs test] acc: {acc:.2f}')
-    elif args.dataset == 'meld':
+
+    if args.dataset == 'meld':
         #p_val = np.argmax(p_val, axis=1)
         p_test = np.argmax(p_test, axis=1)
         # dev
@@ -256,37 +246,9 @@ def main():
         weighted_f1 = f1_score(y_test, p_test, average='weighted') * 100
         acc = accuracy_score(y_test, p_test) * 100
         logger.info(f'[MELD test] weighted F1: {weighted_f1:.2f} acc: {acc:.2f}')
-    elif args.dataset == 'emotic':
-        # val
-        mAP = average_precision_score(y_val, p_val, average='macro') * 100
-        auc = roc_auc_score(y_val, p_val, average='macro') * 100
-        logger.info(f'[Emotic val] mAP: {mAP:.2f} AUC: {auc:.2f}')
-        # test
-        mAP = average_precision_score(y_test, p_test, average='macro') * 100
-        auc = roc_auc_score(y_test, p_test, average='macro') * 100
-        logger.info(f'[Emotic test] mAP: {mAP:.2f} AUC: {auc:.2f}')
+
     else:
         raise ValueError(f'Unknown dataset {args.dataset}')
     
-    # predict VAD
-    if args.dataset == 'bold':
-        y_train, y_val = [], []
-        for i in range(len(train_dataset)):
-            target = train_dataset.annotations.loc[i, ['valence', 'arousal', 'dominance']].values.astype(np.float32)
-            target = torch.from_numpy(target)
-            y_train.append(target)
-        for i in range(len(val_dataset)):
-            target = val_dataset.annotations.loc[i, ['valence', 'arousal', 'dominance']].values.astype(np.float32)
-            target = torch.from_numpy(target)
-            y_val.append(target)
-        y_train, y_val = np.stack(y_train), np.stack(y_val)
-        
-        reg = Ridge(alpha=1)
-        reg.fit(X_train, y_train)
-        p_val = reg.predict(X_val)
-        r2 = r2_score(y_val, p_val, multioutput='uniform_average') * 100
-        logger.info(f'[BoLD val] r2: {r2:.2f}')
-
-
 if __name__ == '__main__':
     main()

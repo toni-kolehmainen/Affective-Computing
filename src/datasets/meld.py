@@ -99,22 +99,21 @@ class MELD(Dataset):
         self.index['Sentiment'] = self.index['Sentiment'].apply(lambda x: SENTIMENT_CLASS_NAMES.index(x))
         
         # mannually remove corrupted samples
-        # not needed for now
-        #if self.split == 'train':
-        #    CORRUPTED_SAMPLES_INFO = [
-        #        (1165, 125, 3)
-        #    ]
-        #elif self.split == 'dev':
-        #    CORRUPTED_SAMPLES_INFO = [
-        #        (1084, 110, 7)
-        #    ]
-        #elif self.split == 'test':
-        #    CORRUPTED_SAMPLES_INFO = []
-        #for idx, dia_id, utt_id in CORRUPTED_SAMPLES_INFO:
-        #    assert self.index.loc[idx, 'Dialogue_ID'] == dia_id
-        #    assert self.index.loc[idx, 'Utterance_ID'] == utt_id
-        #    self.index.drop(idx, inplace=True)
-        #self.index.reset_index(drop=True, inplace=True)
+        if self.split == 'train':
+            CORRUPTED_SAMPLES_INFO = [
+                (1165, 125, 3)
+            ]
+        elif self.split == 'dev':
+            CORRUPTED_SAMPLES_INFO = [
+                (1084, 110, 7)
+            ]
+        elif self.split == 'test':
+            CORRUPTED_SAMPLES_INFO = []
+        for idx, dia_id, utt_id in CORRUPTED_SAMPLES_INFO:
+            assert self.index.loc[idx, 'Dialogue_ID'] == dia_id
+            assert self.index.loc[idx, 'Utterance_ID'] == utt_id
+            self.index.drop(idx, inplace=True)
+        self.index.reset_index(drop=True, inplace=True)
         
         # load the human boxes
         boxes_fpath = osp.join(self.data_dir, f'{self.split}_human_boxes.json')

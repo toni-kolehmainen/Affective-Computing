@@ -3,13 +3,12 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     MELD_DATASET_PATH: str = (
-        "/Data/Documents/masters/uni_oulu/semester1/affective_computing/project/MELD.Raw"
+        "PATH-TO-FOLDER-WITH-MELD"
     )
     EMOTIC_DATASET_PATH: str = (
-        "/Data/Documents/masters/uni_oulu/semester1/affective_computing/project/emotic"
+        "PATH-TO-FOLDER-WITH-EMOTIC"
     )
-    
-    EMOTIONCLIP_MODEL_PATH: str = './emotionclip_latest.pt'
+    EMOTIONCLIP_MODEL_PATH: str = "PATH-TO-EMOTIONCLIP-MODEL"
 
     BACKBONE_BASE_PATH: str = "./src/models/model_configs/ViT-B-32.json"
 
