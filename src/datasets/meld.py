@@ -4,6 +4,7 @@ import os.path as osp
 from re import L
 from typing import Literal, Optional
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -88,7 +89,7 @@ class MELD(Dataset):
     def _create_index(self):
         # load .csv data
         if self.split in ['train', 'dev', 'test']:
-            annotation_file_path = osp.join(self.data_dir, 'MELD.Raw' ,f'{self.split}_sent_emo.csv')
+            annotation_file_path = osp.join(self.data_dir ,f'{self.split}_sent_emo.csv')
             self.index = pd.read_csv(annotation_file_path)
         else:
             raise NotImplementedError
@@ -129,15 +130,18 @@ class MELD(Dataset):
     def __getitem__(self, i):
         dialogue_id = self.index.loc[i, 'Dialogue_ID']
         utterance_id = self.index.loc[i, 'Utterance_ID']
-        clip_id = f'dia{dialogue_id}_utt{utterance_id}.mp4'
-        clip_dir = osp.join(self.data_dir, 'frames', f'{self.split}_splits', clip_id, 'frames')
+        clip_id = f'dia{dialogue_id}_utt{utterance_id}_frames'
+        clip_dir = osp.join(self.data_dir, self.split, 'frames', clip_id)
         
-        num_frames = len(os.listdir(clip_dir))
+        frame_names = sorted([file.name for file in Path(clip_dir).iterdir()])
+        print(frame_names)
+        num_frames = len(frame_names)
+
         # HACK return another sample if the clip is too short when using non-uniform sampling
         if self.sampling_strategy != 'uniform' and num_frames < self.video_len:
             new_i = np.random.randint(self.index.shape[0])
             return self.__getitem__(new_i)
-        
+
         # sampling
         start_frame, end_frame = 0, num_frames-1
         if self.sampling_strategy == 'uniform':
@@ -149,7 +153,7 @@ class MELD(Dataset):
         frames = []
         masks = []
         for frame_id in sampled_frame_ids:
-            frame_name = f"{frame_id+1:08d}.jpg"
+            frame_name = frame_names[frame_id]
             frame_path = osp.join(clip_dir, frame_name)
             raw_frame = Image.open(frame_path).convert('RGB')
             raw_boxes = self.human_boxes[clip_id][frame_name]
