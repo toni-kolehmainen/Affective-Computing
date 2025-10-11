@@ -2,10 +2,7 @@ import argparse
 import time
 from pathlib import Path
 import os
-import sys
-
-yolov7_path = Path(__file__).resolve().parents[2] / "yolov7"
-sys.path.insert(0, str(yolov7_path))
+import orjson
 
 import cv2
 import torch
@@ -27,126 +24,93 @@ from models.yolo import Model
 
 
 def detect(save_img=False):
-    batch_size = opt.batch_size
-    num_workers = opt.num_workers
-    source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
-    save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
-    webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
-        ('rtsp://', 'rtmp://', 'http://', 'https://'))
+    source = Path(opt.source)
+    weights = opt.weights
 
-
-    # Initialize
     set_logging()
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
     add_safe_globals([torch.nn.modules.container.Sequential])
-    model = attempt_load(weights, map_location=device)  # load FP32 model
-    stride = int(model.stride.max())  # model stride
-    imgsz = check_img_size(imgsz, s=stride)  # check img_size
+    model = attempt_load(weights, map_location=device)
+    stride = int(model.stride.max())
+    opt.img_size = check_img_size(opt.img_size, s=stride)
 
-    if trace:
+    if not opt.no_trace:
         model = TracedModel(model, device, opt.img_size)
-
     if half:
-        model.half()  # to FP16
-
-    # Second-stage classifier
-    classify = False
-    if classify:
-        modelc = load_classifier(name='resnet101', n=2)  # initialize
-        modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model']).to(device).eval()
-        
-    # Directories
-    save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
-    (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+        model.half()
 
     all_human_boxes = dict()
-
     t0 = time.time()
-    for i, vid in enumerate(tqdm(os.listdir(source))):
-    # for vid in tqdm(os.listdir(source)):
 
-        # Tonttu test
-        # if i >= 3:
-        #     break
+    for video_dir in tqdm(sorted(source.iterdir())):
+        if not video_dir.is_dir() or not video_dir.name.startswith("dia"):
+            continue
 
-        clip_boxes = detect_one_video(model, source, vid, save_dir, stride, device, half)
-        all_human_boxes.update(clip_boxes)
-        # detect_one_video(model,source,vid,save_dir,stride,device,half,webcam=False)
+        clip_id = video_dir.name
+        video_boxes = detect_one_video(
+            model=model,
+            source_dir=video_dir,
+            device=device,
+            half=half,
+            stride=stride,
+        )
+        if video_boxes:
+            all_human_boxes[clip_id] = video_boxes
 
-    with open(os.path.join(source, 'test_bounding_boxes.json'), 'w') as f:
-        json.dump(all_human_boxes, f, indent=2)
+    output_json = source.parent / "human_boxes.json"
+    with open(output_json, 'wb') as f:
+        f.write(orjson.dumps(all_human_boxes))
 
-    print(f'Done. ({time.time() - t0:.3f}s)')
+    print(f"Saved human boxes to: {output_json}")
+    print(f"Done. ({time.time() - t0:.3f}s)")
 
-def detect_one_video(model, source, vid, save_dir, stride, device, half, webcam=False):
-    print(torch.version.cuda)      # Should show your CUDA version
-    print(torch.cuda.is_available())  # Should be True
-    print(torch.cuda.current_device())
-    save_dir = save_dir / vid
-    frames_folder = os.path.join(source, vid)
-    human_boxes_path = os.path.join(source, f'{vid}_human_boxes.json')
 
-    if os.path.exists(human_boxes_path):
-        return True
-    if not os.path.exists(frames_folder):
-        raise FileNotFoundError(f"{frames_folder} does not exist")
+def detect_one_video(model, source_dir, device, half, stride):
+    dataset = ImagesDataset(str(source_dir), img_size=opt.img_size, stride=stride)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, num_workers=opt.num_workers)
 
-    # Dataloader
-    if webcam:
-        dataset = LoadStreams(frames_folder, img_size=opt.img_size, stride=stride)
-    else:
-        dataset = ImagesDataset(frames_folder, img_size=opt.img_size, stride=stride)
-        dataset = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, num_workers=opt.num_workers)
+    names = model.module.names if hasattr(model, 'module') else model.names
+    human_boxes = dict()
 
-    # Run inference
-    if device.type != 'cpu':
-        model(torch.zeros(1, 3, opt.img_size, opt.img_size).to(device).type_as(next(model.parameters())))
+    model(torch.zeros(1, 3, opt.img_size, opt.img_size).to(device).type_as(next(model.parameters())))  # warmup
 
-    clip_human_boxes = dict()  # per video
-
-    for path, img, im0s in dataset:
-        img = img.to(device).half() if device.type != 'cpu' else img.float()
+    for path, img, im0s in dataloader:
+        img = img.to(device)
+        img = img.half() if half else img.float()
         img /= 255.0
         if img.ndimension() == 3:
             img = img.unsqueeze(0)
 
         pred = model(img, augment=opt.augment)[0]
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes,
-                                   agnostic=opt.agnostic_nms, multi_label=True)
+        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms, multi_label=True)
 
         for i, det in enumerate(pred):
-            frame_name = Path(path[i]).name  # 00000001.jpg
-            boxes = det[det[:, -1] == 0, :4].cpu().detach().numpy().tolist()  # only class 0 (person)
-            clip_human_boxes[frame_name] = boxes
-            boxes_with_conf_class = []
-            for *xyxy, conf, cls in reversed(det): # unpack box + confidence + class
-                if int(cls) == 0: # only class 0 (person)
-                    xywh = xyxy2xywh(torch.tensor(xyxy).view(1, 4)).view(-1).tolist()
-                    boxes_with_conf_class.append(xywh + [float(conf), int(cls)])
-                    clip_human_boxes[frame_name] = boxes_with_conf_class
+            p = Path(path[i])
+            frame_name = p.name
+            if det is not None and len(det):
+                human_det = det[:,:-1][det[:,-1]==0]  # class 0 = person
+                if len(human_det):
+                    human_boxes[frame_name] = human_det.cpu().numpy().tolist()
+                else:
+                    human_boxes[frame_name] = []
+            else:
+                human_boxes[frame_name] = []
 
-    # Save JSON using the video/clip name as key
-    return {vid: clip_human_boxes}
-
-    # human_boxes = {vid: clip_human_boxes}
-    # with open(human_boxes_path, 'w') as f:
-    #     json.dump(human_boxes, f, indent=2)
-
-    # return True
+    return human_boxes if len(human_boxes) else None
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default='yolov7.pt', help='model.pt path(s)')
-    parser.add_argument('--source', type=str, default='../youtube', help='source')  # file/folder, 0 for webcam
+    parser.add_argument('--source', type=str, required=True, help='Path to folder containing *_frames folders')  # file/folder, 0 for webcam
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--batch-size', type=int, default=32, help='inference batch size')
     parser.add_argument('--num-workers', type=int, default=8, help='inference num workers')
     parser.add_argument('--conf-thres', type=float, default=0.25, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--debug', action='store_true', help='debug mode, i.e. example image with bboxes')
     parser.add_argument('--view-img', action='store_true', help='display results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
@@ -161,8 +125,6 @@ if __name__ == '__main__':
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
     opt = parser.parse_args()
-    print(opt)
-    #check_requirements(exclude=('pycocotools', 'thop'))
 
     with torch.no_grad():
         if opt.update:  # update all models (to fix SourceChangeWarning)

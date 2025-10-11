@@ -3,6 +3,7 @@ import os
 import os.path as osp
 from typing import Literal, Optional
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -62,6 +63,14 @@ class MELD(Dataset):
             T.Normalize(mean=[0.485, 0.456, 0.406],
                         std=[0.229, 0.224, 0.225])
         ])
+        
+    def _create_index(self):
+        # load .csv data
+        if self.split in ['train', 'dev', 'test']:
+            annotation_file_path = osp.join(self.data_dir ,f'{self.split}_sent_emo.csv')
+            self.index = pd.read_csv(annotation_file_path)
+        else:
+            raise NotImplementedError
 
     def _create_index(self):
         # Load CSV

@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     MELD_DATASET_PATH: str = (
-        "./"
+        "PATH-TO-FOLDER-WITH-MELD"
     )
     EMOTIC_DATASET_PATH: str = (
         "PATH-TO-FOLDER-WITH-EMOTIC"
