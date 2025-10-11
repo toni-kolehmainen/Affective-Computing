@@ -18,6 +18,9 @@ from utils.general import check_img_size, check_requirements, check_imshow, non_
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
+from torch.serialization import add_safe_globals
+from models.yolo import Model
+
 
 
 def detect(save_img=False):
@@ -28,6 +31,7 @@ def detect(save_img=False):
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
+    add_safe_globals([torch.nn.modules.container.Sequential])
     model = attempt_load(weights, map_location=device)
     stride = int(model.stride.max())
     opt.img_size = check_img_size(opt.img_size, s=stride)
@@ -61,7 +65,6 @@ def detect(save_img=False):
 
     print(f"Saved human boxes to: {output_json}")
     print(f"Done. ({time.time() - t0:.3f}s)")
-
 
 
 def detect_one_video(model, source_dir, device, half, stride):
