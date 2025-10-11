@@ -21,6 +21,7 @@ from src.engine.utils import set_random_seed
 from src.engine.logger import setup_logger
 from config import settings
 
+
 @dataclass
 class EvalArgs(argparse.Namespace):
     ckpt_path: str = settings.EMOTIONCLIP_MODEL_PATH
@@ -30,17 +31,12 @@ class EvalArgs(argparse.Namespace):
     seed: int = 2022
     folder: Optional[str] = None
 
-EMOTION_LIST = ["neutral", "joy", "sadness", "anger", "fear", "surprise"]
 
 def DefaultDataLoader(dataset, args: EvalArgs):
     return DataLoader(
-        dataset=dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        drop_last=False,
-        num_workers=2,
-        pin_memory=True
+        dataset=dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, num_workers=2, pin_memory=True
     )
+
 
 @torch.no_grad()
 def extract_features(model: EmotionCLIP, dataloader: DataLoader, args: EvalArgs):
@@ -54,7 +50,7 @@ def extract_features(model: EmotionCLIP, dataloader: DataLoader, args: EvalArgs)
         frames = frames.to(args.device, non_blocking=True)
         masks = masks.to(args.device, non_blocking=True)
 
-        with torch.amp.autocast(device_type='cuda' if 'cuda' in args.device else 'cpu'):
+        with torch.amp.autocast(device_type="cuda" if "cuda" in args.device else "cpu"):
             feats = model.encode_video(frames, masks)
             feats = F.normalize(feats, dim=-1)
 
@@ -82,30 +78,27 @@ def extract_features(model: EmotionCLIP, dataloader: DataLoader, args: EvalArgs)
 
     return all_features, all_targets, clip_paths
 
+
 @torch.no_grad()
 def zero_shot_emotion_analysis(model: EmotionCLIP, video_feats: np.ndarray, args: EvalArgs, clip_paths):
     rprint("\n[cyan]Running zero-shot emotion analysis...[/cyan]")
 
-    prompts = [f"a person expressing {emo}" for emo in EMOTION_LIST]
+    prompts = [f"a person expressing {emo}" for emo in settings.EMOTION_LIST]
     text_tokens = clip.tokenize(prompts).to(args.device)
 
-    with torch.amp.autocast(device_type='cuda' if 'cuda' in args.device else 'cpu'):
+    with torch.amp.autocast(device_type="cuda" if "cuda" in args.device else "cpu"):
         text_feats = model.encode_text(text_tokens)
         text_feats = F.normalize(text_feats, dim=-1)
 
     video_feats = torch.from_numpy(video_feats).to(args.device)
     sims = video_feats @ text_feats.T
     preds = sims.argmax(dim=-1).cpu().numpy()
-    pred_emotions = [EMOTION_LIST[i] for i in preds]
+    pred_emotions = [settings.EMOTION_LIST[i] for i in preds]
 
     folders = [os.path.dirname(p) for p in clip_paths]
     image_names = [os.path.basename(p) for p in clip_paths]
 
-    results = pd.DataFrame({
-        "folder": folders,
-        "image_name": image_names,
-        "predicted_emotion": pred_emotions
-    })
+    results = pd.DataFrame({"folder": folders, "image_name": image_names, "predicted_emotion": pred_emotions})
 
     save_path = os.path.join(args.folder, "predicted_emotions.csv")
     results.to_csv(save_path, index=False)
@@ -113,21 +106,20 @@ def zero_shot_emotion_analysis(model: EmotionCLIP, video_feats: np.ndarray, args
 
     return results
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--folder", type=str, required=True,
-        help="Folder containing subfolders with frames, optional human_boxes.json and answers.csv"
+        "--folder",
+        type=str,
+        required=True,
+        help="Folder containing subfolders with frames, optional human_boxes.json and answers.csv",
     )
     parser.add_argument("--ckpt-path", type=str, default="./data/emotionclip_latest.pt")
     parser.add_argument("--batch-size", type=int, default=4)
     args_cli = parser.parse_args()
 
-    args = EvalArgs(
-        folder=args_cli.folder,
-        ckpt_path=args_cli.ckpt_path,
-        batch_size=args_cli.batch_size
-    )
+    args = EvalArgs(folder=args_cli.folder, ckpt_path=args_cli.ckpt_path, batch_size=args_cli.batch_size)
 
     set_random_seed(args.seed)
     logger = setup_logger("eval")
@@ -140,18 +132,23 @@ def main():
     model.eval().to(args.device)
     logger.info(f"Model loaded from {args.ckpt_path}")
 
-    bbox_json = os.path.join(args.folder, "human_boxes.json") if os.path.exists(os.path.join(args.folder, "human_boxes.json")) else None
-    answers_csv = os.path.join(args.folder, "answers.csv") if os.path.exists(os.path.join(args.folder, "answers.csv")) else None
+    bbox_json = (
+        os.path.join(args.folder, "human_boxes.json")
+        if os.path.exists(os.path.join(args.folder, "human_boxes.json"))
+        else None
+    )
+    answers_csv = (
+        os.path.join(args.folder, "answers.csv") if os.path.exists(os.path.join(args.folder, "answers.csv")) else None
+    )
 
     logger.info(f"Using folder: {args.folder}")
-    if bbox_json: logger.info(f"Found bounding boxes: {bbox_json}")
-    if answers_csv: logger.info(f"Found answers CSV: {answers_csv}")
+    if bbox_json:
+        logger.info(f"Found bounding boxes: {bbox_json}")
+    if answers_csv:
+        logger.info(f"Found answers CSV: {answers_csv}")
 
     dataset = GenericVideoDataset(
-        frames_root=args.folder,
-        bbox_json=bbox_json,
-        answers_csv=answers_csv,
-        target="emotion_idx"
+        frames_root=args.folder, bbox_json=bbox_json, answers_csv=answers_csv, target="emotion_idx"
     )
     dataloader = DefaultDataLoader(dataset, args)
 
@@ -172,6 +169,7 @@ def main():
             zero_shot_emotion_analysis(model, X_test, args, clip_paths)
     else:
         zero_shot_emotion_analysis(model, X_test, args, clip_paths)
+
 
 if __name__ == "__main__":
     main()
