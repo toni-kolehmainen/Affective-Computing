@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     CUDA_DEVICE: str = "cuda:0"
 
-    EMOTION_LIST = ["neutral", "joy", "sadness", "anger", "fear", "surprise"]
+    EMOTION_LIST: list[str] = ["neutral", "joy", "sadness", "anger", "fear", "surprise"]
 
     MELD_DATASET_PATH: str = "./project/MELD.Raw"
     EMOTIC_DATASET_PATH: str = "./project/emotic"
