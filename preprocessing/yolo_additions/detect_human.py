@@ -45,9 +45,6 @@ def detect(save_img=False):
     t0 = time.time()
 
     for video_dir in tqdm(sorted(source.iterdir())):
-        if not video_dir.is_dir() or not video_dir.name.startswith("dia"):
-            continue
-
         clip_id = video_dir.name
         video_boxes = detect_one_video(
             model=model,
@@ -90,6 +87,9 @@ def detect_one_video(model, source_dir, device, half, stride):
             p = Path(path[i])
             frame_name = p.name
             if det is not None and len(det):
+                im0 = im0s[i]
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+
                 human_det = det[:,:-1][det[:,-1]==0]  # class 0 = person
                 if len(human_det):
                     human_boxes[frame_name] = human_det.cpu().numpy().tolist()
