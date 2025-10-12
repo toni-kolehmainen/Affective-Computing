@@ -44,7 +44,7 @@ def extract_features(model: EmotionCLIP, dataloader: DataLoader, args: EvalArgs)
     all_targets = []
     clip_paths = []
 
-    for batch in tqdm(dataloader, desc="Extracting features"):
+    for batch in tqdm(dataloader, desc="Extracting features", unit_scale=dataloader.batch_size):
         frames, masks, targets, clip_ids, frame_names = batch
 
         frames = frames.to(args.device, non_blocking=True)
@@ -69,7 +69,7 @@ def extract_features(model: EmotionCLIP, dataloader: DataLoader, args: EvalArgs)
         # Use folder + filename for zero-shot CSV
         clip_paths.extend([os.path.join(clip_id, fname) for clip_id, fname in zip(clip_ids, frame_names)])
 
-    all_features = torch.cat(all_features).numpy()
+    all_features = torch.cat(all_features).float().numpy()
     if all_targets:
         all_targets = torch.cat(all_targets).numpy()
         all_targets[all_targets == -1] = 0
@@ -86,9 +86,12 @@ def zero_shot_emotion_analysis(model: EmotionCLIP, video_feats: np.ndarray, args
     prompts = [f"a person expressing {emo}" for emo in settings.EMOTION_LIST]
     text_tokens = clip.tokenize(prompts).to(args.device)
 
-    with torch.amp.autocast(device_type="cuda" if "cuda" in args.device else "cpu"):
+    device = "cuda" if "cuda" in args.device else "cpu"
+
+    with torch.amp.autocast(device_type=device):
         text_feats = model.encode_text(text_tokens)
         text_feats = F.normalize(text_feats, dim=-1)
+        text_feats = text_feats.float()
 
     video_feats = torch.from_numpy(video_feats).to(args.device)
     sims = video_feats @ text_feats.T
@@ -115,7 +118,7 @@ def main():
         required=True,
         help="Folder containing subfolders with frames, optional human_boxes.json and answers.csv",
     )
-    parser.add_argument("--ckpt-path", type=str, default="./data/emotionclip_latest.pt")
+    parser.add_argument("--ckpt-path", type=str, default=settings.EMOTIONCLIP_MODEL_PATH)
     parser.add_argument("--batch-size", type=int, default=4)
     args_cli = parser.parse_args()
 

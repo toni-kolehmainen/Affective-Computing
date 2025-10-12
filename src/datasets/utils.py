@@ -44,11 +44,11 @@ def bbox_to_mask(
     if binary:
         for box in boxes:
             if box[4] > binary_threshold:
-                mask[box[1]:box[3], box[0]:box[2]] = 1
+                mask[int(box[1]):int(box[3]), int(box[0]):int(box[2])] = 1
     else:
         mask = mask.unsqueeze(0).expand(len(boxes), *mask.shape)
         for i, box in enumerate(boxes):
-            mask[i, box[1]:box[3], box[0]:box[2]] = box[4]
+            mask[i, int(box[1]):int(box[3]), int(box[0]):int(box[2])] = box[4]
         mask = mask.max(dim=0)[0]
     return mask
 

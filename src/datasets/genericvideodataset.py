@@ -90,11 +90,11 @@ class GenericVideoDataset(Dataset):
 
         # Apply bounding box mask if exists
         raw_boxes = self.human_boxes.get(clip_id, {}).get(frame_name, [])
-        mask = bbox_to_mask(raw_boxes, frame.size) if raw_boxes else torch.ones(1, frame.height, frame.width)
+        mask = bbox_to_mask(raw_boxes, frame.size) if raw_boxes else torch.ones(frame.height, frame.width)
 
         # Preprocess
         frame = self.preprocesser(frame)
-        mask = F.resize(mask, [224, 224]).float()
+        mask = F.resize(torch.unsqueeze(mask, 0), [224, 224]).float()
 
         # Load target if exists
         if self.target == 'emotion_idx' and 'Emotion' in row:
