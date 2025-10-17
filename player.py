@@ -219,7 +219,6 @@ class VideoPlayer(QMainWindow):
             style = self.get_slider_gradient(self.positionSlider, self.current_emotion_chunks)
             
             # Set initial handle color to first chunk
-            # first_emotion = self.current_emotion_chunks[0]["emotion"]
             first_emotion = "neutral"
             style = style.replace("background: #444444;", f"background: {emotion_colors.get(first_emotion, '#444444')};")
             self.positionSlider.setStyleSheet(style)
@@ -247,7 +246,6 @@ class VideoPlayer(QMainWindow):
             self.error.setText(f"No video found for '{query}'")
 
     def load_video(self, file_name):
-        print(f"Loading video file: {file_name}")
         video_path = os.path.join(VIDEO_FOLDER_PATH, file_name)
         print(f"Loading video: {video_path}")
         self.current_file = file_name
