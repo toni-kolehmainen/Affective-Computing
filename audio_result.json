@@ -1,0 +1,153 @@
+{
+    "2 VERY different friends\ud83d\ude02\ud83d\udc2e-(1280p60).mp4.wav": {
+        "file": "2 VERY different friends\ud83d\ude02\ud83d\udc2e-(1280p60).mp4.wav",
+        "emotions": [
+            "fearful",
+            "happy",
+            "angry"
+        ],
+        "content": [
+            {
+                "time": 0.0,
+                "emotion": "fearful",
+                "confidence": 0.9923776388168335
+            },
+            {
+                "time": 2.0,
+                "emotion": "happy",
+                "confidence": 0.8845931887626648
+            },
+            {
+                "time": 4.0,
+                "emotion": "angry",
+                "confidence": 0.9958298802375793
+            },
+            {
+                "time": 6.0,
+                "emotion": "happy",
+                "confidence": 0.999300479888916
+            }
+        ]
+    },
+    "Andrew watches too many movies \ud83d\udc94 #viral #meme #shorts #funny #memes #Christian #trending-(1280p60).mp4.wav": {
+        "file": "Andrew watches too many movies \ud83d\udc94 #viral #meme #shorts #funny #memes #Christian #trending-(1280p60).mp4.wav",
+        "emotions": [
+            "happy",
+            "surprised",
+            "fearful",
+            "sad",
+            "disgust",
+            "angry"
+        ],
+        "content": [
+            {
+                "time": 0.0,
+                "emotion": "happy",
+                "confidence": 0.9954667091369629
+            },
+            {
+                "time": 2.0,
+                "emotion": "surprised",
+                "confidence": 0.9749413728713989
+            },
+            {
+                "time": 4.0,
+                "emotion": "fearful",
+                "confidence": 0.5225648880004883
+            },
+            {
+                "time": 6.0,
+                "emotion": "fearful",
+                "confidence": 0.9895510077476501
+            },
+            {
+                "time": 8.0,
+                "emotion": "sad",
+                "confidence": 0.9988701939582825
+            },
+            {
+                "time": 10.0,
+                "emotion": "disgust",
+                "confidence": 0.9069217443466187
+            },
+            {
+                "time": 12.0,
+                "emotion": "sad",
+                "confidence": 0.975229024887085
+            },
+            {
+                "time": 14.0,
+                "emotion": "angry",
+                "confidence": 0.9649032950401306
+            }
+        ]
+    },
+    "Angry bus driver in #london #busdriver #fight #angry #overworked #bus #tube #reaction #viral #road-(1034p30).mp4.wav": {
+        "file": "Angry bus driver in #london #busdriver #fight #angry #overworked #bus #tube #reaction #viral #road-(1034p30).mp4.wav",
+        "emotions": [
+            "happy",
+            "fearful",
+            "angry"
+        ],
+        "content": [
+            {
+                "time": 0.0,
+                "emotion": "happy",
+                "confidence": 0.9848372340202332
+            },
+            {
+                "time": 2.0,
+                "emotion": "happy",
+                "confidence": 0.44049108028411865
+            },
+            {
+                "time": 4.0,
+                "emotion": "fearful",
+                "confidence": 0.9979174733161926
+            },
+            {
+                "time": 6.0,
+                "emotion": "angry",
+                "confidence": 0.9989945292472839
+            }
+        ]
+    },
+    "Angry reaction to rudeness#anger #rude #reaction #dontberude-(1280p20).mp4.wav": {
+        "file": "Angry reaction to rudeness#anger #rude #reaction #dontberude-(1280p20).mp4.wav",
+        "emotions": [
+            "happy"
+        ],
+        "content": [
+            {
+                "time": 0.0,
+                "emotion": "happy",
+                "confidence": 0.9921070337295532
+            },
+            {
+                "time": 2.0,
+                "emotion": "happy",
+                "confidence": 0.999293327331543
+            },
+            {
+                "time": 4.0,
+                "emotion": "happy",
+                "confidence": 0.8809422850608826
+            },
+            {
+                "time": 6.0,
+                "emotion": "happy",
+                "confidence": 0.9066208004951477
+            },
+            {
+                "time": 8.0,
+                "emotion": "happy",
+                "confidence": 0.965398907661438
+            },
+            {
+                "time": 10.0,
+                "emotion": "happy",
+                "confidence": 0.9994250535964966
+            }
+        ]
+    }
+}

@@ -7,6 +7,8 @@ emotionclip_latest.pt
 linear_eval_video.py
 frames/
 youtube/
+videos/
+audio/
 meld_local/
 meld_dev/
 MELD.Raw/
