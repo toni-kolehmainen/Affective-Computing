@@ -143,6 +143,8 @@ def main():
     linear_clf.fit(X_test, y_test)  # fits on test just to get predictions
     p_test = linear_clf.predict(X_test)
 
+    
+
     # Compute metrics
     weighted_f1 = f1_score(y_test, p_test, average="weighted") * 100
     acc = accuracy_score(y_test, p_test) * 100

@@ -26,6 +26,9 @@ def main(args: argparse.Namespace):
         print(f"Found {len(video_files)} video files in '{VIDEO_FOLDER}' folder.")
         for video_file in video_files:
             clip = VideoFileClip(os.path.join(VIDEO_FOLDER, video_file))
+            if clip.audio is None:
+                print(f"⚠️ No audio found in video '{video_file}', skipping.")
+                continue
             audio = clip.audio
             audio.write_audiofile(os.path.join(AUDIO_FOLDER, f"{video_file}.wav"))
 
@@ -35,8 +38,8 @@ def main(args: argparse.Namespace):
 
     audio_results = {}
     for itr, audio_file in enumerate(audio_files):
-        if itr == 4:
-            break
+        # if itr == 4:
+        #     break
         audio_path = os.path.join(AUDIO_FOLDER, audio_file)
         emotions = predict_emotions_for_chunks(audio_path, model, feature_extractor, id2label, chunk_duration=CHUNK_DURATION)
         print(f"Predictions for '{audio_file}':")
@@ -80,4 +83,5 @@ if __name__ == "__main__":
     main(args)
 
 # example usage:
-# python audio_json_writer.py --audio True
+# python audio_json_writer.py --audio
+# python audio_json_writer.py --no-audio
