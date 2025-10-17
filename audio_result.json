@@ -27,7 +27,8 @@
                 "emotion": "happy",
                 "confidence": 0.999300479888916
             }
-        ]
+        ],
+        "length_seconds": 7.96
     },
     "Andrew watches too many movies \ud83d\udc94 #viral #meme #shorts #funny #memes #Christian #trending-(1280p60).mp4.wav": {
         "file": "Andrew watches too many movies \ud83d\udc94 #viral #meme #shorts #funny #memes #Christian #trending-(1280p60).mp4.wav",
@@ -80,7 +81,8 @@
                 "emotion": "angry",
                 "confidence": 0.9649032950401306
             }
-        ]
+        ],
+        "length_seconds": 14.47
     },
     "Angry bus driver in #london #busdriver #fight #angry #overworked #bus #tube #reaction #viral #road-(1034p30).mp4.wav": {
         "file": "Angry bus driver in #london #busdriver #fight #angry #overworked #bus #tube #reaction #viral #road-(1034p30).mp4.wav",
@@ -110,7 +112,8 @@
                 "emotion": "angry",
                 "confidence": 0.9989945292472839
             }
-        ]
+        ],
+        "length_seconds": 7.76
     },
     "Angry reaction to rudeness#anger #rude #reaction #dontberude-(1280p20).mp4.wav": {
         "file": "Angry reaction to rudeness#anger #rude #reaction #dontberude-(1280p20).mp4.wav",
@@ -148,6 +151,7 @@
                 "emotion": "happy",
                 "confidence": 0.9994250535964966
             }
-        ]
+        ],
+        "length_seconds": 11.26
     }
 }

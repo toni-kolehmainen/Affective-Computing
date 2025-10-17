@@ -57,7 +57,8 @@ def main(args: argparse.Namespace):
         audio_results[audio_file] = {
             "file": audio_file,
             "emotions": overall_emotions,
-            "content": content_list
+            "content": content_list,
+            "length_seconds": float(librosa.get_duration(path=audio_path))
         }
     
     # Write the results to audio_result.json

@@ -138,21 +138,25 @@ class VideoPlayer(QMainWindow):
     def get_slider_gradient(self, slider, content):
         if not content or slider.maximum() == 0:
             return ""
-
-        max_time = content[-1]["time"]
+        max_time = self.video_duration
         stops = []
 
         for i, chunk in enumerate(content):
             start_percent = chunk["time"] / max_time
-            end_time = content[i + 1]["time"] if i + 1 < len(content) else max_time
+            end_time = content[i]["time"] if i < len(content) else max_time
             end_percent = end_time / max_time
-
-            color = emotion_colors.get(chunk["emotion"], "#FFFFFF")
+            if (self.searchInput.text().lower() != "" and
+                self.searchInput.text().lower() not in chunk["emotion"]):
+                color = "#CCCCCC"  # Grey out non-matching emotions
+            else:
+                color = emotion_colors.get(chunk["emotion"], "#FFFFFF")
             
             # Thin black separator
             if i != 0:
-                # stops.append(f"stop:{start_percent - 0.001:.3f} {color}")
-                stops.append(f"stop:{start_percent - 0.001:.3f} ""#000000")
+                if chunk["emotion"] != content[i - 1]["emotion"]:
+                    stops.append(f"stop:{start_percent - 0.001:.3f} ""#CCCCCC")
+                else:
+                    stops.append(f"stop:{start_percent - 0.001:.3f} {color}")
                 stops.append(f"stop:{start_percent:.3f} {color}")
             else:
                 stops.append(f"stop:{start_percent:.3f} {color}")
@@ -201,8 +205,6 @@ class VideoPlayer(QMainWindow):
             current_chunk = None
             for chunk in self.current_emotion_chunks:
                 if pos_sec >= chunk["time"]:
-                    print("chunk_time", chunk["time"])
-                    print("pos_sec", pos_sec)
                     current_chunk = chunk
                 else:
                     break
@@ -217,7 +219,8 @@ class VideoPlayer(QMainWindow):
             style = self.get_slider_gradient(self.positionSlider, self.current_emotion_chunks)
             
             # Set initial handle color to first chunk
-            first_emotion = self.current_emotion_chunks[0]["emotion"]
+            # first_emotion = self.current_emotion_chunks[0]["emotion"]
+            first_emotion = "neutral"
             style = style.replace("background: #444444;", f"background: {emotion_colors.get(first_emotion, '#444444')};")
             self.positionSlider.setStyleSheet(style)
 
@@ -253,7 +256,7 @@ class VideoPlayer(QMainWindow):
         self.set_video_title(f"Video Title: {file_name}")
 
         self.current_emotion_chunks = self.audio_results[file_name + ".wav"]["content"]
-
+        self.video_duration = self.audio_results[file_name + ".wav"]["length_seconds"]
         # Show first chunk's emotion and confidence
         first_chunk = self.current_emotion_chunks[0]
         emotion = first_chunk["emotion"]
