@@ -20,7 +20,7 @@ from ..models.tokenizer import tokenize
 from config import settings
 
 EMOTION_CLASS_NAMES = [
-    'neutral', 'surprise', 'fear', 'sadness', 'joy', 'disgust', 'anger'
+    'neutral', 'surprise', 'fear', 'sadness', 'happy', 'disgust', 'anger'
 ]
 
 SENTIMENT_CLASS_NAMES = [
@@ -79,7 +79,14 @@ class MELD(Dataset):
 
         # Preprocessing
         self.index['Emotion'] = self.index['Emotion'].apply(lambda x: EMOTION_CLASS_NAMES.index(x))
-        self.index['Sentiment'] = self.index['Sentiment'].apply(lambda x: SENTIMENT_CLASS_NAMES.index(x))
+        if self.target == 'sentiment_idx':
+            self.index['Sentiment'] = self.index['Sentiment'].apply(lambda x: SENTIMENT_CLASS_NAMES.index(x))
+
+            # Filter CSV to only clips that exist in frames_root
+            if self.frames_root is not None:
+                existing_clips = set(os.listdir(self.frames_root))
+                self.index['clip_id'] = self.index.apply(lambda row: f"dia{row['Dialogue_ID']}_utt{row['Utterance_ID']}_frames", axis=1)
+                self.index = self.index[self.index['clip_id'].isin(existing_clips)].reset_index(drop=True)
 
         # Load bounding boxes
         boxes_fpath = self.bbox_json if self.bbox_json is not None else osp.join(self.data_dir, f'{self.split}_human_boxes.json')
@@ -87,13 +94,17 @@ class MELD(Dataset):
         with open(boxes_fpath, 'r') as f:
             self.human_boxes = orjson.loads(f.read())
 
-        # Filter CSV to only clips that exist in frames_root
-        if self.frames_root is not None:
-            existing_clips = set(os.listdir(self.frames_root))
-            self.index['clip_id'] = self.index.apply(lambda row: f"dia{row['Dialogue_ID']}_utt{row['Utterance_ID']}_frames", axis=1)
-            self.index = self.index[self.index['clip_id'].isin(existing_clips)].reset_index(drop=True)
-
         logger.info(f'Index of {self.split} set created, {self.index.shape[0]} samples in total.')
+
+        if self.frames_root is not None:
+            # Get all clip folder names inside video_frames/
+            existing_clips = set(os.listdir(self.frames_root))
+
+            # Strip '.mp4' and append '_frames' to match folder names
+            self.index['clip_id'] = self.index['video_name'].str.replace('.mp4', '', regex=False) + '_frames'
+
+            # Filter to only clips that exist
+            self.index = self.index[self.index['clip_id'].isin(existing_clips)].reset_index(drop=True)
 
     def __len__(self):
         return self.index.shape[0]
@@ -102,7 +113,7 @@ class MELD(Dataset):
         clip_id = self.index.loc[i, 'clip_id']
         clip_dir = osp.join(self.frames_root, clip_id) if self.frames_root else osp.join(self.data_dir, 'frames', f'{self.split}_splits', clip_id, 'frames')
 
-        frame_files = sorted(os.listdir(clip_dir))
+        frame_files = sorted(f for f in os.listdir(clip_dir)if f.lower().endswith(('.jpg', '.jpeg', '.png')))
         num_frames = len(frame_files)
         if num_frames == 0:
             raise RuntimeError(f"No frames found in {clip_dir}")
