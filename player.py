@@ -11,9 +11,10 @@ import argparse
 import json
 import os
 
-AUDIO_RESULT_PATH = "audio_result.json"
-AUDIO_FOLDER_PATH = "audio"
-VIDEO_FOLDER_PATH = "videos"
+AUDIO_RESULT_PATH = "videos/audio_result.json"
+VIDEO_RESULT_PATH = "videos/video_result.json"
+AUDIO_FOLDER_PATH = "videos/audio"
+VIDEO_FOLDER_PATH = "videos/videos"
 
 emotion_colors = {
     "happy": "#0DFF00",
@@ -26,13 +27,14 @@ emotion_colors = {
 }
 
 class VideoPlayer(QMainWindow):
-    def __init__(self, audio_results):
+    def __init__(self, audio_results, video_results):
         super().__init__()
         self.setWindowTitle("PyQt5 Video Player with Side Panel")
         self.currentFile = ''
         self.current_file_index = -1
         self.listOfFiles = []
         self.audio_results = audio_results
+        self.video_results = video_results
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.VideoSurface)
 
         # --- Search input ---
@@ -84,8 +86,7 @@ class VideoPlayer(QMainWindow):
 
         self.labelTitle = QLabel(f"Video Title: {self.currentFile}")
         self.labelTitle.setStyleSheet("font-weight: bold; font-size: 14px;")
-        # self.labelVideoPrediction = QLabel("Prediction: Happy 0.9565")
-        self.labelVideoPrediction = QLabel("Video Prediction: NEEDS TO BE IMPLEMENTED")
+        self.labelVideoPrediction = QLabel("Video Prediction:")
         self.labelVideoPrediction.setWordWrap(True)
         self.labelAudioPrediction = QLabel("Audio Prediction:")
         self.labelAudioPrediction.setWordWrap(True)
@@ -121,6 +122,7 @@ class VideoPlayer(QMainWindow):
         self.mediaPlayer.positionChanged.connect(self.positionChanged)
         self.mediaPlayer.durationChanged.connect(self.durationChanged)
         self.mediaPlayer.error.connect(self.handleError)
+
     def go_next_video(self):
         if not self.listOfFiles:
             return
@@ -200,8 +202,10 @@ class VideoPlayer(QMainWindow):
     def positionChanged(self, position):
         self.positionSlider.setValue(position)
         # Current emotion label based on video position
+        pos_sec = position / 1000
+
+        # Audio
         if hasattr(self, 'current_emotion_chunks') and self.current_emotion_chunks:
-            pos_sec = position / 1000
             current_chunk = None
             for chunk in self.current_emotion_chunks:
                 if pos_sec >= chunk["time"]:
@@ -213,15 +217,31 @@ class VideoPlayer(QMainWindow):
                 confidence = f"{current_chunk['confidence']:.5f}"
                 self.labelAudioPrediction.setText(f"Audio Prediction: {emotion}, {confidence}")
 
+        # Video
+        if hasattr(self, 'current_video_chunks') and self.current_video_chunks:
+            current_v = None
+            for chunk in self.current_video_chunks:
+                if pos_sec >= chunk["time"]:
+                    current_v = chunk
+                else:
+                    break
+            if current_v:
+                emo_v = current_v["emotion"]
+                conf_v = f"{current_v['confidence']:.5f}"
+                self.labelVideoPrediction.setText(f"Video Prediction: {emo_v}, {conf_v}")
+
     def durationChanged(self, duration):
         self.positionSlider.setRange(0, duration)
-        if hasattr(self, 'current_emotion_chunks'):
-            style = self.get_slider_gradient(self.positionSlider, self.current_emotion_chunks)
-            
-            # Set initial handle color to first chunk
-            first_emotion = "neutral"
+        if hasattr(self, 'current_video_chunks') and self.current_video_chunks:
+            style = self.get_slider_gradient(self.positionSlider, self.current_video_chunks)
+            first_emotion = self.current_video_chunks[0]["emotion"]
             style = style.replace("background: #444444;", f"background: {emotion_colors.get(first_emotion, '#444444')};")
             self.positionSlider.setStyleSheet(style)
+        elif hasattr(self, 'current_emotion_chunks') and self.current_emotion_chunks:
+            # fallback to audio timeline style if video missing
+            style = self.get_slider_gradient(self.positionSlider, self.current_emotion_chunks)
+            self.positionSlider.setStyleSheet(style)
+
 
     def setPosition(self, position):
         self.mediaPlayer.setPosition(position)
@@ -234,33 +254,52 @@ class VideoPlayer(QMainWindow):
         self.listOfFiles = []  # Reset the list of files
         query = self.searchInput.text().lower()
 
-        # Find matching emotions
-        for file_name in self.audio_results.keys():
-            _file_name = file_name.removesuffix(".wav")
-            if query in self.audio_results[file_name]["emotions"]:
-                self.listOfFiles.append(_file_name)
-        if len(self.listOfFiles) != 0:
+        #files = set(list(self.audio_results.keys()) + list(self.video_results.keys()))
+        files = set([value["file"] for key, value in self.video_results.items()])
+        for file_name in files:
+            file_base = os.path.splitext(file_name)[0]
+
+            audio_ok = False
+            video_ok = False
+            if file_name.endswith(".wav"):
+                audio_ok = query in self.audio_results.get(file_name, {}).get("emotions", [])
+            if file_base in self.video_results:
+                video_ok = query in self.video_results[file_base].get("emotions", [])
+            if audio_ok or video_ok:
+                self.listOfFiles.append(file_name)
+        
+        if self.listOfFiles:
             self.current_file_index = 0
             self.load_video(self.listOfFiles[0])
         else:
             self.error.setText(f"No video found for '{query}'")
 
+
     def load_video(self, file_name):
         video_path = os.path.join(VIDEO_FOLDER_PATH, file_name)
         print(f"Loading video: {video_path}")
         self.current_file = file_name
-        self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(video_path)))
+
+        self.mediaPlayer.setMedia(QMediaContent(QUrl.fromLocalFile(os.path.abspath(video_path))))
         self.playButton.setEnabled(True)
         self.set_video_title(f"Video Title: {file_name}")
 
-        self.current_emotion_chunks = self.audio_results[file_name + ".wav"]["content"]
-        self.video_duration = self.audio_results[file_name + ".wav"]["length_seconds"]
+        file_base = os.path.splitext(file_name)[0]
+
+        self.current_emotion_chunks = self.audio_results[file_base]["content"]
+        self.video_duration = self.audio_results[file_base]["length_seconds"]
         # Show first chunk's emotion and confidence
         first_chunk = self.current_emotion_chunks[0]
         emotion = first_chunk["emotion"]
         confidence = f"{first_chunk['confidence']:.5f}"
         self.labelAudioPrediction.setText(f"Audio Prediction: {emotion}, {confidence}")
         self.error.setText("")
+
+        self.current_video_chunks = self.video_results[file_base]["content"]
+        first_v = self.current_video_chunks[0]
+        emo_v = first_v["emotion"]
+        conf_v = f"{first_v['confidence']:.5f}"
+        self.labelVideoPrediction.setText(f"Video Prediction: {emo_v}, {conf_v}")
     
     def set_video_title(self, full_title, max_width=200):
         font_metrics = QFontMetrics(self.labelTitle.font())
@@ -268,20 +307,26 @@ class VideoPlayer(QMainWindow):
         self.labelTitle.setText(elided_text)
         self.labelTitle.setToolTip(full_title)
 
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="PyQt5 Video Player with Side Panel")
     # p.add_argument('--file', type=str, help="File to process")
     return p.parse_args()
 
+
 def main():
     args = parse_args()
-    with open("audio_result.json", "r") as f:
+    with open(AUDIO_RESULT_PATH, "r") as f:
         audio_results = json.load(f)
+    with open(VIDEO_RESULT_PATH, "r") as f:
+        video_results = json.load(f)
+
     app = QApplication(sys.argv)
-    videoplayer = VideoPlayer(audio_results)
+    videoplayer = VideoPlayer(audio_results, video_results)
     videoplayer.resize(800, 480)
     videoplayer.show()
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()

@@ -67,7 +67,7 @@ def videos_to_frames(input_dir: str, output_dir: str, fps: int = 24):
 
         process.wait()
 
-        video_key = rel_video_path.split("/")[-1]
+        video_key = rel_video_path.split("/")[-1].replace(".mp4", "")
         video_name_frames_dict[video_key] = frame_name_timestamp_dict
 
     output_json_path = os.path.join(output_dir, OUTPUT_JSON)

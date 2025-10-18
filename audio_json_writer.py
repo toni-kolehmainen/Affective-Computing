@@ -6,8 +6,8 @@ import os
 import argparse
 import json
 from moviepy.video.io.VideoFileClip import VideoFileClip
-VIDEO_FOLDER = "videos"
-AUDIO_FOLDER = "audio"
+VIDEO_FOLDER = "videos/videos"
+AUDIO_FOLDER = "videos/audio"
 CHUNK_DURATION = 2.0  # seconds
 
 model_id = "firdhokk/speech-emotion-recognition-with-openai-whisper-large-v3"
@@ -54,7 +54,7 @@ def main(args: argparse.Namespace):
                 overall_emotions.append(emotion)
 
         # Add to main JSON object
-        audio_results[audio_file] = {
+        audio_results[audio_file.replace(".wav", "")] = {
             "file": audio_file,
             "emotions": overall_emotions,
             "content": content_list,
