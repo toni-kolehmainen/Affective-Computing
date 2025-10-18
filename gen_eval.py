@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 import clip
+import json
+from collections import defaultdict
 
 import numpy as np
 import torch
@@ -95,19 +97,41 @@ def zero_shot_emotion_analysis(model: EmotionCLIP, video_feats: np.ndarray, args
 
     video_feats = torch.from_numpy(video_feats).to(args.device)
     sims = video_feats @ text_feats.T
-    preds = sims.argmax(dim=-1).cpu().numpy()
+    probs = F.softmax(sims, dim=-1).cpu().numpy()
+    preds = probs.argmax(axis=-1)
     pred_emotions = [settings.EMOTION_LIST[i] for i in preds]
 
     folders = [os.path.dirname(p) for p in clip_paths]
     image_names = [os.path.basename(p) for p in clip_paths]
 
-    results = pd.DataFrame({"folder": folders, "image_name": image_names, "predicted_emotion": pred_emotions})
+    output_json = defaultdict(dict)
 
-    save_path = os.path.join(args.folder, "predicted_emotions.csv")
-    results.to_csv(save_path, index=False)
-    rprint(f"[green]✅ Saved zero-shot emotion predictions to:[/green] {save_path}")
+    for folder, image_name, prob_row, pred_emo in zip(folders, image_names, probs, pred_emotions):
+        score_dict = {
+            emo: float(score) for emo, score in zip(settings.EMOTION_LIST, prob_row)
+        }
+        file_name = folder.replace("_frames", "")
+        output_json[file_name][image_name] = {
+            "scores": score_dict,
+            "predicted_emotion": pred_emo
+        }
 
-    return results
+    # Save to JSON
+    save_json_path = os.path.join(args.folder, "emotion_scores.json")
+    with open(save_json_path, "w") as f:
+        json.dump(output_json, f, indent=2)
+
+    rprint(f"[green]✅ Saved emotion scores by folder to:[/green] {save_json_path}")
+
+    flat_results = pd.DataFrame({
+        "folder": folders,
+        "image_name": image_names,
+        "predicted_emotion": pred_emotions
+    })
+    save_csv_path = os.path.join(args.folder, "predicted_emotions.csv")
+    flat_results.to_csv(save_csv_path, index=False)
+
+    return
 
 
 def main():

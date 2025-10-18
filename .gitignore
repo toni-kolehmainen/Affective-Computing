@@ -195,3 +195,5 @@ cython_debug/
 
 yolov7/
 *.npy
+project/
+videos/
