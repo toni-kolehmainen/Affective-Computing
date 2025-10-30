@@ -21,8 +21,18 @@ Run command is in commands. Check path to model is correct!!!
 
 1. Install ffmpeg by running `pip install ffmpeg`
 2. Process the videos to frames (24 fps, images) using videos_to_frames.py
-3. Lorem Ipsum
+3. Video JSON
+- To build `video_result.json` run `contextual_video.py`
 
+- Command contains a tag for model file `--ckpt-path` type .pt
+
+- Requires frame folder and videos
+
+4. Audio JSON
+
+- To build `audio_result.json` run `audio_json_writer.py`
+
+- Extracting wav file run the command with `--audio`
 
 ### Video Player
 
