@@ -20,6 +20,7 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 from torchvision.ops.misc import FrozenBatchNorm2d
 
+from config import settings
 
 logger = logging.getLogger()
 
@@ -728,7 +729,7 @@ class VisualHead(nn.Module):
 class EmotionCLIP(nn.Module):
     def __init__(
         self,
-        backbone_config: str = './src/models/model_configs/ViT-B-32.json',
+        backbone_config: str = settings.BACKBONE_BASE_PATH,
         backbone_checkpoint: Optional[str] = None,
         temporal_fusion: str = 'transformer',
         video_len: int = 8,

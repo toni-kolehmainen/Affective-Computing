@@ -3,9 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 emotionclip_latest.pt
+/data/yolov7.pt
 linear_eval_video.py
 frames/
 youtube/
+videos/
+audio/
 meld_local/
 meld_dev/
 MELD.Raw/
@@ -189,3 +192,8 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+yolov7/
+*.npy
+project/
+videos/
