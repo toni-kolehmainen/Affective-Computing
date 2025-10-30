@@ -7,7 +7,7 @@ For further information about EmotionCLIP and its usage please [click here](http
 
 ## Overview
 
-![EmotionCLIP](.github/emotionclip_acomp.png)
+![EmotionCLIP](.github/emotionclip_acomp.jpg)
 
 # Setup
 
@@ -27,9 +27,20 @@ Run command is in commands. Check path to model is correct!!!
 
 
 ### Video Player
-1. Lorem Ipsum
-2. Lorem Ipsum
-3. Lorem Ipsum
+´Prerequisite: pyqt5 ´
+
+1. The application requires two files in the project structure:
+´videos/audio_result.json´
+´videos/video_result.json´
+
+The video and audio files (recommended format .p4 or .wav) should follow this directory structure:
+´videos/video´
+´videos/audio´
+
+2. Run the player.py
+3. On the interface, type an emotion on a search bar, then hit "Load" to filter the list and load the first matching video. A list of related videos will show on the side.
+4. Use the < and > buttons to cycle through the videos
+5. Use the "play/pause" button to control the video
 
 # Acknowledgments
 Our code is based on [EmotionCLIP](https://github.com/Xeaver/EmotionCLIP).
