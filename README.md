@@ -12,7 +12,7 @@ This project is based on [EmotionCLIP](https://openaccess.thecvf.com/content/CVP
 2. Install requirements by running `pip install -r requirements.txt`
 3. Download model .pt file
 
-Run commands for this project are specified ![here](command.md). Check path to model is correct!!!
+Run commands for this project are specified ![here](commmand.md). Check path to model is correct!!!
 
 
 
