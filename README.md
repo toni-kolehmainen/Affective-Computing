@@ -12,7 +12,7 @@ This project is based on [EmotionCLIP](https://openaccess.thecvf.com/content/CVP
 2. Install requirements by running `pip install -r requirements.txt`
 3. Download model .pt file
 
-Run command is in commands. Check path to model is correct!!!
+Run commands for this project are specified ![here](command.md). Check path to model is correct!!!
 
 
 
@@ -42,7 +42,7 @@ Run command is in commands. Check path to model is correct!!!
 `videos/audio_result.json`
 `videos/video_result.json`
 
-The video and audio files (recommended format .p4 or .wav) should follow this directory structure:
+The video and audio files (recommended format .mp4 or .wav) should follow this directory structure:
 `videos/video`
 `videos/audio`
 
